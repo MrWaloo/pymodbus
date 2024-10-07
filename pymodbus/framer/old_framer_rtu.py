@@ -1,9 +1,6 @@
 """RTU framer."""
-# pylint: disable=missing-type-doc
-import struct
 import time
 
-from pymodbus.exceptions import ModbusIOException
 from pymodbus.framer.old_framer_base import BYTE_ORDER, FRAME_HEADER, ModbusFramer
 from pymodbus.framer.rtu import FramerRTU
 from pymodbus.logging import Log
@@ -49,128 +46,13 @@ class ModbusRtuFramer(ModbusFramer):
         (1/Baud)(bits) = delay seconds
     """
 
-    method = "rtu"
-
     def __init__(self, decoder, client=None):
         """Initialize a new instance of the framer.
 
         :param decoder: The decoder factory implementation to use
         """
         super().__init__(decoder, client)
-        self._hsize = 0x01
-        self.function_codes = decoder.lookup.keys() if decoder else {}
-        self.message_handler = FramerRTU()
-        self.msg_len = 0
-
-    def decode_data(self, data):
-        """Decode data."""
-        if len(data) > self._hsize:
-            uid = int(data[0])
-            fcode = int(data[1])
-            return {"slave": uid, "fcode": fcode}
-        return {}
-
-
-    def frameProcessIncomingPacket(self, _single, callback, slave, tid=None):  # noqa: C901
-        """Process new packet pattern."""
-
-        def is_frame_ready(self):
-            """Check if we should continue decode logic."""
-            size = self.msg_len
-            if not size and len(self._buffer) > self._hsize:
-                try:
-                    self.dev_id = int(self._buffer[0])
-                    func_code = int(self._buffer[1])
-                    pdu_class = self.decoder.lookupPduClass(func_code)
-                    size = pdu_class.calculateRtuFrameSize(self._buffer)
-                    self.msg_len = size
-
-                    if len(self._buffer) < size:
-                        raise IndexError
-                except IndexError:
-                    return False
-            return len(self._buffer) >= size if size > 0 else False
-
-        def get_frame_start(self, slaves, broadcast, skip_cur_frame):
-            """Scan buffer for a relevant frame start."""
-            start = 1 if skip_cur_frame else 0
-            if (buf_len := len(self._buffer)) < 4:
-                return False
-            for i in range(start, buf_len - 3):  # <slave id><function code><crc 2 bytes>
-                if not broadcast and self._buffer[i] not in slaves:
-                    continue
-                if (
-                    self._buffer[i + 1] not in self.function_codes
-                    and (self._buffer[i + 1] - 0x80) not in self.function_codes
-                ):
-                    continue
-                if i:
-                    self._buffer = self._buffer[i:]  # remove preceding trash.
-                return True
-            if buf_len > 3:
-                self._buffer = self._buffer[-3:]
-            return False
-
-        def check_frame(self):
-            """Check if the next frame is available."""
-            try:
-                self.dev_id = int(self._buffer[0])
-                func_code = int(self._buffer[1])
-                pdu_class = self.decoder.lookupPduClass(func_code)
-                size = pdu_class.calculateRtuFrameSize(self._buffer)
-                self.msg_len = size
-
-                if len(self._buffer) < size:
-                    raise IndexError
-                frame_size = self.msg_len
-                data = self._buffer[: frame_size - 2]
-                crc = self._buffer[size - 2 : size]
-                crc_val = (int(crc[0]) << 8) + int(crc[1])
-                return FramerRTU.check_CRC(data, crc_val)
-            except (IndexError, KeyError, struct.error):
-                return False
-
-        broadcast = not slave[0]
-        skip_cur_frame = False
-        while get_frame_start(self, slave, broadcast, skip_cur_frame):
-            self.dev_id = 0
-            self.msg_len = 0
-            if not is_frame_ready(self):
-                Log.debug("Frame - not ready")
-                break
-            if not check_frame(self):
-                Log.debug("Frame check failed, ignoring!!")
-                x = self._buffer
-                self.resetFrame()
-                self._buffer: bytes = x
-                skip_cur_frame = True
-                continue
-            start = self._hsize
-            end = self.msg_len - 2
-            buffer = self._buffer[start:end]
-            if end > 0:
-                Log.debug("Getting Frame - {}", buffer, ":hex")
-                data = buffer
-            else:
-                data = b""
-            if (result := self.decoder.decode(data)) is None:
-                raise ModbusIOException("Unable to decode request")
-            result.slave_id = self.dev_id
-            result.transaction_id = 0
-            self._buffer = self._buffer[self.msg_len :]
-            Log.debug("Frame advanced, resetting header!!")
-            callback(result)  # defer or push to a thread?
-
-    def buildPacket(self, message):
-        """Create a ready to send modbus packet.
-
-        :param message: The populated request/response to send
-        """
-        packet = super().buildPacket(message)
-
-        # Ensure that transaction is actually the slave id for serial comms
-        message.transaction_id = 0
-        return packet
+        self.message_handler: FramerRTU = FramerRTU(self.decoder, [0])
 
     def sendPacket(self, message: bytes) -> int:
         """Send packets on the bus with 3.5char delay between frames.

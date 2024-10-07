@@ -11,6 +11,7 @@ from pymodbus.transaction import (
     ModbusRtuFramer,
     ModbusSocketFramer,
     ModbusTlsFramer,
+    ModbusTransactionManager,
     SyncModbusTransactionManager,
 )
 
@@ -88,7 +89,9 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
                 == exception_length
             )
 
-    def test_execute(self):
+    @mock.patch.object(SyncModbusTransactionManager, "_recv")
+    @mock.patch.object(ModbusTransactionManager, "getTransaction")
+    def test_execute(self, mock_get_transaction, mock_recv):
         """Test execute."""
         client = mock.MagicMock()
         client.framer = self._ascii
@@ -99,45 +102,37 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
         client.framer.buildPacket.return_value = b"deadbeef"
         client.framer.sendPacket = mock.MagicMock()
         client.framer.sendPacket.return_value = len(b"deadbeef")
-        client.framer.decode_data = mock.MagicMock()
-        client.framer.decode_data.return_value = {
-            "slave": 1,
-            "fcode": 222,
-            "length": 27,
-        }
         request = mock.MagicMock()
         request.get_response_pdu_size.return_value = 10
         request.slave_id = 1
         request.function_code = 222
         trans = SyncModbusTransactionManager(client, 3)
-        trans._recv = mock.MagicMock(  # pylint: disable=protected-access
+        mock_recv.reset_mock(
             return_value=b"abcdef"
         )
         assert trans.retries == 3
 
-        trans.getTransaction = mock.MagicMock()
-        trans.getTransaction.return_value = "response"
+        mock_get_transaction.return_value = b"response"
         response = trans.execute(request)
-        assert response == "response"
+        assert response == b"response"
         # No response
-        trans._recv = mock.MagicMock(  # pylint: disable=protected-access
+        mock_recv.reset_mock(
             return_value=b"abcdef"
         )
         trans.transactions = {}
-        trans.getTransaction = mock.MagicMock()
-        trans.getTransaction.return_value = None
+        mock_get_transaction.return_value = None
         response = trans.execute(request)
         assert isinstance(response, ModbusIOException)
 
         # No response with retries
-        trans._recv = mock.MagicMock(  # pylint: disable=protected-access
+        mock_recv.reset_mock(
             side_effect=iter([b"", b"abcdef"])
         )
         response = trans.execute(request)
         assert isinstance(response, ModbusIOException)
 
         # wrong handle_local_echo
-        trans._recv = mock.MagicMock(  # pylint: disable=protected-access
+        mock_recv.reset_mock(
             side_effect=iter([b"abcdef", b"deadbe", b"123456"])
         )
         client.comm_params.handle_local_echo = True
@@ -145,14 +140,14 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
         client.comm_params.handle_local_echo = False
 
         # retry on invalid response
-        trans._recv = mock.MagicMock(  # pylint: disable=protected-access
+        mock_recv.reset_mock(
             side_effect=iter([b"", b"abcdef", b"deadbe", b"123456"])
         )
         response = trans.execute(request)
         assert isinstance(response, ModbusIOException)
 
         # Unable to decode response
-        trans._recv = mock.MagicMock(  # pylint: disable=protected-access
+        mock_recv.reset_mock(
             side_effect=ModbusIOException()
         )
         client.framer.processIncomingPacket.side_effect = mock.MagicMock(
@@ -169,33 +164,20 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
 
     def test_get_transaction_manager_transaction(self):
         """Test the getting a transaction from the transaction manager."""
-
-        class Request:  # pylint: disable=too-few-public-methods
-            """Request."""
-
         self._manager.reset()
-        handle = Request()
-        handle.transaction_id = (  # pylint: disable=attribute-defined-outside-init
-            self._manager.getNextTID()
+        handle = ModbusRequest(
+            0, self._manager.getNextTID(), False
         )
-        handle.message = b"testing"  # pylint: disable=attribute-defined-outside-init
         self._manager.addTransaction(handle)
         result = self._manager.getTransaction(handle.transaction_id)
-        assert handle.message == result.message
+        assert handle is result
 
     def test_delete_transaction_manager_transaction(self):
         """Test deleting a transaction from the dict transaction manager."""
-
-        class Request:  # pylint: disable=too-few-public-methods
-            """Request."""
-
         self._manager.reset()
-        handle = Request()
-        handle.transaction_id = (  # pylint: disable=attribute-defined-outside-init
-            self._manager.getNextTID()
+        handle = ModbusRequest(
+            0, self._manager.getNextTID(), False
         )
-        handle.message = b"testing"  # pylint: disable=attribute-defined-outside-init
-
         self._manager.addTransaction(handle)
         self._manager.delTransaction(handle.transaction_id)
         assert not self._manager.getTransaction(handle.transaction_id)
@@ -315,31 +297,23 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
             count += 1
             result = data
 
-        expected = ModbusRequest(0, 0, 0, False)
+        expected = ModbusRequest(0, 0, False)
         expected.transaction_id = 0x0001
-        expected.protocol_id = 0x1234
         expected.slave_id = 0xFF
         msg = b"\x00\x01\x12\x34\x00\x06\xff\x02\x12\x34\x01\x02"
         self._tcp.processIncomingPacket(msg, callback, [0, 1])
-        # assert self._tcp.checkFrame()
-        # actual = ModbusRequest(0, 0, 0, False)
-        # self._tcp.populateResult(actual)
-        # for name in ("transaction_id", "protocol_id", "slave_id"):
-        #     assert getattr(expected, name) == getattr(actual, name)
 
-    def test_tcp_framer_packet(self):
+    @mock.patch.object(ModbusRequest, "encode")
+    def test_tcp_framer_packet(self, mock_encode):
         """Test a tcp frame packet build."""
-        old_encode = ModbusRequest.encode
-        ModbusRequest.encode = lambda self: b""
-        message = ModbusRequest(0, 0, 0, False)
+        message = ModbusRequest(0, 0, False)
         message.transaction_id = 0x0001
-        message.protocol_id = 0x0000
         message.slave_id = 0xFF
         message.function_code = 0x01
         expected = b"\x00\x01\x00\x00\x00\x02\xff\x01"
+        mock_encode.return_value = b""
         actual = self._tcp.buildPacket(message)
         assert expected == actual
-        ModbusRequest.encode = old_encode
 
     # ----------------------------------------------------------------------- #
     # TLS tests
@@ -405,15 +379,6 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
         assert not result
         self._tcp.processIncomingPacket(msg[2:], callback, [0, 1])
         assert result
-
-    def test_framer_tls_framer_decode(self):
-        """Testmessage decoding."""
-        msg1 = b""
-        msg2 = b"\x01\x12\x34\x00\x08"
-        result = self._tls.decode_data(msg1)
-        assert not result
-        result = self._tls.decode_data(msg2)
-        assert result == {"fcode": 1}
 
     def test_framer_tls_incoming_packet(self):
         """Framer tls incoming packet."""
@@ -482,16 +447,15 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
         self._tcp.processIncomingPacket(msg, callback, [0, 1])
         assert result
 
-    def test_framer_tls_framer_packet(self):
+    @mock.patch.object(ModbusRequest, "encode")
+    def test_framer_tls_framer_packet(self, mock_encode):
         """Test a tls frame packet build."""
-        old_encode = ModbusRequest.encode
-        ModbusRequest.encode = lambda self: b""
-        message = ModbusRequest(0, 0, 0, False)
+        message = ModbusRequest(0, 0, False)
         message.function_code = 0x01
         expected = b"\x01"
+        mock_encode.return_value = b""
         actual = self._tls.buildPacket(message)
         assert expected == actual
-        ModbusRequest.encode = old_encode
 
     # ----------------------------------------------------------------------- #
     # RTU tests
@@ -556,17 +520,16 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
         self._rtu.processIncomingPacket(msg, callback, [0, 1])
         assert int(msg[0]) == self._rtu.dev_id
 
-    def test_rtu_framer_packet(self):
+    @mock.patch.object(ModbusRequest, "encode")
+    def test_rtu_framer_packet(self, mock_encode):
         """Test a rtu frame packet build."""
-        old_encode = ModbusRequest.encode
-        ModbusRequest.encode = lambda self: b""
-        message = ModbusRequest(0, 0, 0, False)
+        message = ModbusRequest(0, 0, False)
         message.slave_id = 0xFF
         message.function_code = 0x01
         expected = b"\xff\x01\x81\x80"  # only header + CRC - no data
+        mock_encode.return_value = b""
         actual = self._rtu.buildPacket(message)
         assert expected == actual
-        ModbusRequest.encode = old_encode
 
     def test_rtu_decode_exception(self):
         """Test that the RTU framer can decode errors."""
@@ -658,24 +621,6 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
         assert not result
         self._ascii.processIncomingPacket(msg_parts[1], callback, [0,1])
         assert result
-
-    def test_ascii_framer_populate(self):
-        """Test a ascii frame packet build."""
-        request = ModbusRequest(0, 0, 0, False)
-        self._ascii.populateResult(request)
-        assert not request.slave_id
-
-    def test_ascii_framer_packet(self):
-        """Test a ascii frame packet build."""
-        old_encode = ModbusRequest.encode
-        ModbusRequest.encode = lambda self: b""
-        message = ModbusRequest(0, 0, 0, False)
-        message.slave_id = 0xFF
-        message.function_code = 0x01
-        expected = b":FF0100\r\n"
-        actual = self._ascii.buildPacket(message)
-        assert expected == actual
-        ModbusRequest.encode = old_encode
 
     def test_ascii_process_incoming_packets(self):
         """Test ascii process incoming packet."""
