@@ -5,12 +5,14 @@ from pymodbus.exceptions import (
     ModbusIOException,
 )
 from pymodbus.factory import ServerDecoder
+from pymodbus.framer import (
+    FramerAscii,
+    FramerRTU,
+    FramerSocket,
+    FramerTLS,
+)
 from pymodbus.pdu import ModbusRequest
 from pymodbus.transaction import (
-    ModbusAsciiFramer,
-    ModbusRtuFramer,
-    ModbusSocketFramer,
-    ModbusTlsFramer,
     ModbusTransactionManager,
     SyncModbusTransactionManager,
 )
@@ -38,10 +40,10 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
         """Set up the test environment."""
         self.client = None
         self.decoder = ServerDecoder()
-        self._tcp = ModbusSocketFramer(decoder=self.decoder, client=None)
-        self._tls = ModbusTlsFramer(decoder=self.decoder, client=None)
-        self._rtu = ModbusRtuFramer(decoder=self.decoder, client=None)
-        self._ascii = ModbusAsciiFramer(decoder=self.decoder, client=None)
+        self._tcp = FramerSocket(self.decoder, [])
+        self._tls = FramerTLS(self.decoder, [])
+        self._rtu = FramerRTU(self.decoder, [])
+        self._ascii = FramerAscii(self.decoder, [])
         self._manager = SyncModbusTransactionManager(self.client, 3)
 
     # ----------------------------------------------------------------------- #
@@ -100,8 +102,8 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
         client.framer.processIncomingPacket.return_value = None
         client.framer.buildPacket = mock.MagicMock()
         client.framer.buildPacket.return_value = b"deadbeef"
-        client.framer.sendPacket = mock.MagicMock()
-        client.framer.sendPacket.return_value = len(b"deadbeef")
+        client.send = mock.MagicMock()
+        client.send.return_value = len(b"deadbeef")
         request = mock.MagicMock()
         request.get_response_pdu_size.return_value = 10
         request.slave_id = 1
@@ -196,7 +198,7 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
             result = data
 
         msg = b"\x00\x01\x12\x34\x00\x06\xff\x02\x01\x02\x00\x08"
-        self._tcp.processIncomingPacket(msg, callback, [1])
+        self._tcp.processIncomingPacket(msg, callback)
         self._tcp._buffer = msg  # pylint: disable=protected-access
         callback(b'')
 
@@ -211,7 +213,7 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
             result = data
 
         msg = b"\x00\x01\x12\x34\x00\x06\xff\x02\x01\x02\x00\x08"
-        self._tcp.processIncomingPacket(msg, callback, [0, 1])
+        self._tcp.processIncomingPacket(msg, callback)
         assert result.function_code.to_bytes(1,'big') + result.encode() == msg[7:]
 
     def test_tcp_framer_transaction_half(self):
@@ -226,9 +228,9 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
 
         msg1 = b"\x00\x01\x12\x34\x00"
         msg2 = b"\x06\xff\x02\x01\x02\x00\x08"
-        self._tcp.processIncomingPacket(msg1, callback, [0, 1])
+        self._tcp.processIncomingPacket(msg1, callback)
         assert not result
-        self._tcp.processIncomingPacket(msg2, callback, [0, 1])
+        self._tcp.processIncomingPacket(msg2, callback)
         assert result
         assert result.function_code.to_bytes(1,'big') + result.encode() == msg2[2:]
 
@@ -244,9 +246,9 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
 
         msg1 = b"\x00\x01\x12\x34\x00\x06\xff"
         msg2 = b"\x02\x01\x02\x00\x08"
-        self._tcp.processIncomingPacket(msg1, callback, [0, 1])
+        self._tcp.processIncomingPacket(msg1, callback)
         assert not result
-        self._tcp.processIncomingPacket(msg2, callback, [0, 1])
+        self._tcp.processIncomingPacket(msg2, callback)
         assert result
         assert result.function_code.to_bytes(1,'big') + result.encode() == msg2
 
@@ -262,9 +264,9 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
 
         msg1 = b"\x00\x01\x12\x34\x00\x06\xff\x02\x01\x02\x00"
         msg2 = b"\x08"
-        self._tcp.processIncomingPacket(msg1, callback, [0, 1])
+        self._tcp.processIncomingPacket(msg1, callback)
         assert not result
-        self._tcp.processIncomingPacket(msg2, callback, [0, 1])
+        self._tcp.processIncomingPacket(msg2, callback)
         assert result
         assert result.function_code.to_bytes(1,'big') + result.encode() == msg1[7:] + msg2
 
@@ -281,9 +283,9 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
         # msg1 = b"\x99\x99\x99\x99\x00\x01\x00\x17"
         msg1 = b''
         msg2 = b"\x00\x01\x12\x34\x00\x06\xff\x02\x01\x02\x00\x08"
-        self._tcp.processIncomingPacket(msg1, callback, [0, 1])
+        self._tcp.processIncomingPacket(msg1, callback)
         assert not result
-        self._tcp.processIncomingPacket(msg2, callback, [0, 1])
+        self._tcp.processIncomingPacket(msg2, callback)
         assert result
         assert result.function_code.to_bytes(1,'big') + result.encode() == msg2[7:]
 
@@ -301,7 +303,7 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
         expected.transaction_id = 0x0001
         expected.slave_id = 0xFF
         msg = b"\x00\x01\x12\x34\x00\x06\xff\x02\x12\x34\x01\x02"
-        self._tcp.processIncomingPacket(msg, callback, [0, 1])
+        self._tcp.processIncomingPacket(msg, callback)
 
     @mock.patch.object(ModbusRequest, "encode")
     def test_tcp_framer_packet(self, mock_encode):
@@ -329,9 +331,9 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
             result = data
 
         msg = b"\x00\x01\x12\x34\x00\x06\xff\x02\x12\x34\x01\x02"
-        self._tcp.processIncomingPacket(msg[0:4], callback, [0, 1])
+        self._tcp.processIncomingPacket(msg[0:4], callback)
         assert not result
-        self._tcp.processIncomingPacket(msg[4:], callback, [0, 1])
+        self._tcp.processIncomingPacket(msg[4:], callback)
         assert result
 
     def test_framer_tls_framer_transaction_full(self):
@@ -345,7 +347,7 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
             result = data
 
         msg = b"\x00\x01\x12\x34\x00\x06\xff\x02\x12\x34\x01\x02"
-        self._tcp.processIncomingPacket(msg, callback, [0, 1])
+        self._tcp.processIncomingPacket(msg, callback)
         assert result
 
     def test_framer_tls_framer_transaction_half(self):
@@ -359,9 +361,9 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
             result = data
 
         msg = b"\x00\x01\x12\x34\x00\x06\xff\x02\x12\x34\x01\x02"
-        self._tcp.processIncomingPacket(msg[0:8], callback, [0, 1])
+        self._tcp.processIncomingPacket(msg[0:8], callback)
         assert not result
-        self._tcp.processIncomingPacket(msg[8:], callback, [0, 1])
+        self._tcp.processIncomingPacket(msg[8:], callback)
         assert result
 
     def test_framer_tls_framer_transaction_short(self):
@@ -375,16 +377,14 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
             result = data
 
         msg = b"\x00\x01\x12\x34\x00\x06\xff\x02\x12\x34\x01\x02"
-        self._tcp.processIncomingPacket(msg[0:2], callback, [0, 1])
+        self._tcp.processIncomingPacket(msg[0:2], callback)
         assert not result
-        self._tcp.processIncomingPacket(msg[2:], callback, [0, 1])
+        self._tcp.processIncomingPacket(msg[2:], callback)
         assert result
 
     def test_framer_tls_incoming_packet(self):
         """Framer tls incoming packet."""
         msg = b"\x00\x01\x12\x34\x00\x06\xff\x02\x12\x34\x01\x02"
-
-        slave = 0x01
         msg_result = None
 
         def mock_callback(result):
@@ -393,45 +393,8 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
 
             msg_result = result.encode()
 
-        self._tls.processIncomingPacket(msg, mock_callback, slave)
+        self._tls.processIncomingPacket(msg, mock_callback)
         # assert msg == msg_result
-
-        # self._tls.isFrameReady = mock.MagicMock(return_value=True)
-        # x = mock.MagicMock(return_value=False)
-        # self._tls._validate_slave_id = x
-        # self._tls.processIncomingPacket(msg, mock_callback, slave)
-        # assert not self._tls._buffer
-        # self._tls.advanceFrame()
-        # x = mock.MagicMock(return_value=True)
-        # self._tls._validate_slave_id = x
-        # self._tls.processIncomingPacket(msg, mock_callback, slave)
-        # assert msg[1:] == msg_result
-        # self._tls.advanceFrame()
-
-    def test_framer_tls_process(self):
-        """Framer tls process."""
-        # class MockResult:
-        #     """Mock result."""
-
-        #     def __init__(self, code):
-        #         """Init."""
-        #         self.function_code = code
-
-        # def mock_callback(_arg):
-        #     """Mock callback."""
-
-        # self._tls.decoder.decode = mock.MagicMock(return_value=None)
-        # with pytest.raises(ModbusIOException):
-        #     self._tls._process(mock_callback)
-
-        # result = MockResult(0x01)
-        # self._tls.decoder.decode = mock.MagicMock(return_value=result)
-        # with pytest.raises(InvalidMessageReceivedException):
-        #    self._tls._process(
-        #         mock_callback, error=True
-        #     )
-        # self._tls._process(mock_callback)
-        # assert not self._tls._buffer
 
     def test_framer_tls_framer_populate(self):
         """Test a tls frame packet build."""
@@ -444,7 +407,7 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
             result = data
 
         msg = b"\x00\x01\x12\x34\x00\x06\xff\x02\x12\x34\x01\x02"
-        self._tcp.processIncomingPacket(msg, callback, [0, 1])
+        self._tcp.processIncomingPacket(msg, callback)
         assert result
 
     @mock.patch.object(ModbusRequest, "encode")
@@ -471,9 +434,9 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
             result = data
 
         msg_parts = [b"\x00\x01\x00", b"\x00\x00\x01\xfc\x1b"]
-        self._rtu.processIncomingPacket(msg_parts[0], callback, [0, 1])
+        self._rtu.processIncomingPacket(msg_parts[0], callback)
         assert not result
-        self._rtu.processIncomingPacket(msg_parts[1], callback, [0, 1])
+        self._rtu.processIncomingPacket(msg_parts[1], callback)
         assert result
 
     def test_rtu_framer_transaction_full(self):
@@ -487,7 +450,7 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
             result = data
 
         msg = b"\x00\x01\x00\x00\x00\x01\xfc\x1b"
-        self._rtu.processIncomingPacket(msg, callback, [0, 1])
+        self._rtu.processIncomingPacket(msg, callback)
         assert result
 
     def test_rtu_framer_transaction_half(self):
@@ -501,9 +464,9 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
             result = data
 
         msg_parts = [b"\x00\x01\x00", b"\x00\x00\x01\xfc\x1b"]
-        self._rtu.processIncomingPacket(msg_parts[0], callback, [0, 1])
+        self._rtu.processIncomingPacket(msg_parts[0], callback)
         assert not result
-        self._rtu.processIncomingPacket(msg_parts[1], callback, [0, 1])
+        self._rtu.processIncomingPacket(msg_parts[1], callback)
         assert result
 
     def test_rtu_framer_populate(self):
@@ -517,8 +480,8 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
             result = data
 
         msg = b"\x00\x01\x00\x00\x00\x01\xfc\x1b"
-        self._rtu.processIncomingPacket(msg, callback, [0, 1])
-        assert int(msg[0]) == self._rtu.dev_id
+        self._rtu.processIncomingPacket(msg, callback)
+        assert int(msg[0]) == self._rtu.incoming_dev_id
 
     @mock.patch.object(ModbusRequest, "encode")
     def test_rtu_framer_packet(self, mock_encode):
@@ -542,7 +505,7 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
             result = data
 
         msg = b"\x00\x90\x02\x9c\x01"
-        self._rtu.processIncomingPacket(msg, callback, [0, 1])
+        self._rtu.processIncomingPacket(msg, callback)
         assert result
 
     def test_process(self):
@@ -556,7 +519,7 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
             result = data
 
         msg = b"\x00\x01\x00\x00\x00\x01\xfc\x1b"
-        self._rtu.processIncomingPacket(msg, callback, [0, 1])
+        self._rtu.processIncomingPacket(msg, callback)
         assert result
 
     def test_rtu_process_incoming_packets(self):
@@ -570,9 +533,7 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
             result = data
 
         msg = b"\x00\x01\x00\x00\x00\x01\xfc\x1b"
-        slave = 0x00
-
-        self._rtu.processIncomingPacket(msg, callback, slave)
+        self._rtu.processIncomingPacket(msg, callback)
         assert result
 
     # ----------------------------------------------------------------------- #
@@ -589,7 +550,7 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
             result = data
 
         msg = b":F7031389000A60\r\n"
-        self._ascii.processIncomingPacket(msg, callback, [0,1])
+        self._ascii.processIncomingPacket(msg, callback)
         assert result
 
     def test_ascii_framer_transaction_full(self):
@@ -603,7 +564,7 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
             result = data
 
         msg = b"sss:F7031389000A60\r\n"
-        self._ascii.processIncomingPacket(msg, callback, [0,1])
+        self._ascii.processIncomingPacket(msg, callback)
         assert result
 
     def test_ascii_framer_transaction_half(self):
@@ -617,9 +578,9 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
             result = data
 
         msg_parts = (b"sss:F7031389", b"000A60\r\n")
-        self._ascii.processIncomingPacket(msg_parts[0], callback, [0,1])
+        self._ascii.processIncomingPacket(msg_parts[0], callback)
         assert not result
-        self._ascii.processIncomingPacket(msg_parts[1], callback, [0,1])
+        self._ascii.processIncomingPacket(msg_parts[1], callback)
         assert result
 
     def test_ascii_process_incoming_packets(self):
@@ -633,5 +594,5 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
             result = data
 
         msg = b":F7031389000A60\r\n"
-        self._ascii.processIncomingPacket(msg, callback, [0,1])
+        self._ascii.processIncomingPacket(msg, callback)
         assert result
