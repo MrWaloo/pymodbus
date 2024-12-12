@@ -15,7 +15,7 @@ import struct
 
 from pymodbus import FramerType
 from pymodbus.client import AsyncModbusTcpClient as ModbusClient
-from pymodbus.pdu import ExceptionResponse, ModbusExceptions, ModbusPDU
+from pymodbus.pdu import ExceptionResponse, ModbusPDU
 from pymodbus.pdu.bit_message import ReadCoilsRequest
 
 
@@ -38,7 +38,7 @@ class CustomModbusPDU(ModbusPDU):
 
     def __init__(self, values=None, slave=1, transaction=0):
         """Initialize."""
-        super().__init__(slave_id=slave, transaction_id=transaction)
+        super().__init__(dev_id=slave, transaction_id=transaction)
         self.values = values or []
 
     def encode(self):
@@ -70,7 +70,7 @@ class CustomRequest(ModbusPDU):
 
     def __init__(self, address=None, slave=1, transaction=0):
         """Initialize."""
-        super().__init__(slave_id=slave, transaction_id=transaction)
+        super().__init__(dev_id=slave, transaction_id=transaction)
         self.address = address
         self.count = 16
 
@@ -85,9 +85,9 @@ class CustomRequest(ModbusPDU):
     def execute(self, context):
         """Execute."""
         if not 1 <= self.count <= 0x7D0:
-            return ExceptionResponse(self.function_code, ModbusExceptions.ILLEGAL_VALUE)
+            return ExceptionResponse(self.function_code, ExceptionResponse.ILLEGAL_VALUE)
         if not context.validate(self.function_code, self.address, self.count):
-            return ExceptionResponse(self.function_code, ModbusExceptions.ILLEGAL_ADDRESS)
+            return ExceptionResponse(self.function_code, ExceptionResponse.ILLEGAL_ADDRESS)
         values = context.getValues(self.function_code, self.address, self.count)
         return CustomModbusPDU(values)
 
@@ -105,7 +105,7 @@ class Read16CoilsRequest(ReadCoilsRequest):
 
         :param address: The address to start reading from
         """
-        super().__init__(address=address, count=16, slave_id=slave, transaction_id=transaction)
+        super().__init__(address=address, count=16, dev_id=slave, transaction_id=transaction)
 
 
 # --------------------------------------------------------------------------- #

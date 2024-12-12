@@ -4,9 +4,6 @@ from __future__ import annotations
 import asyncio
 import struct
 from abc import abstractmethod
-from collections.abc import Sequence
-from enum import Enum
-from typing import cast
 
 from pymodbus.exceptions import NotImplementedException
 from pymodbus.logging import Log
@@ -21,26 +18,21 @@ class ModbusPDU:
     rtu_byte_count_pos: int = 0
 
     def __init__(self,
-            slave_id: int = 0,
+            dev_id: int = 0,
             transaction_id: int = 0,
             address: int = 0,
             count: int = 0,
             bits: list[bool] | None = None,
-            registers: Sequence[int | bytes] | None = None,
+            registers: list[int] | None = None,
             status: int = 1,
         ) -> None:
         """Initialize the base data for a modbus request."""
-        self.slave_id: int = slave_id
+        self.dev_id: int = dev_id
         self.transaction_id: int = transaction_id
         self.address: int = address
         self.bits: list[bool] = bits or []
-        if not registers:
-            registers = []
-        self.registers: list[int] = cast(list[int], registers)
-        for i, value in enumerate(registers):
-            if isinstance(value, bytes):
-                self.registers[i] = int.from_bytes(value, byteorder="big")
-        self.count: int = count or len(registers)
+        self.registers: list[int] = registers or []
+        self.count: int = count or len(self.registers)
         self.status: int = status
         self.fut: asyncio.Future
 
@@ -66,7 +58,7 @@ class ModbusPDU:
         """Build a representation of an exception response."""
         return (
             f"{self.__class__.__name__}("
-            f"slave_id={self.slave_id}, "
+            f"dev_id={self.dev_id}, "
             f"transaction_id={self.transaction_id}, "
             f"address={self.address}, "
             f"count={self.count}, "
@@ -101,8 +93,10 @@ class ModbusPDU:
         )
 
 
-class ModbusExceptions(int, Enum):
-    """An enumeration of the valid modbus exceptions."""
+class ExceptionResponse(ModbusPDU):
+    """Base class for a modbus exception PDU."""
+
+    rtu_frame_size = 5
 
     ILLEGAL_FUNCTION = 0x01
     ILLEGAL_ADDRESS = 0x02
@@ -115,12 +109,6 @@ class ModbusExceptions(int, Enum):
     GATEWAY_PATH_UNAVIABLE = 0x0A
     GATEWAY_NO_RESPONSE = 0x0B
 
-
-class ExceptionResponse(ModbusPDU):
-    """Base class for a modbus exception PDU."""
-
-    rtu_frame_size = 5
-
     def __init__(
             self,
             function_code: int,
@@ -128,7 +116,7 @@ class ExceptionResponse(ModbusPDU):
             slave: int = 1,
             transaction: int = 0) -> None:
         """Initialize the modbus exception response."""
-        super().__init__(transaction_id=transaction, slave_id=slave)
+        super().__init__(transaction_id=transaction, dev_id=slave)
         self.function_code = function_code | 0x80
         self.exception_code = exception_code
         Log.error(f"Exception response {self.function_code} / {self.exception_code}")

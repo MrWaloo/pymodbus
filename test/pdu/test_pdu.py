@@ -169,24 +169,22 @@ class TestPdu:
     def test_pdu_instance_extras(self, pdutype, kwargs):
         """Test that all PDU types can be created."""
         tid = 9112
-        slave_id = 63
-        try:
-            pdu = pdutype(transaction=tid, slave=slave_id, **kwargs)
-        except TypeError:
-            pdu = pdutype(transaction_id=tid, slave_id=slave_id, **kwargs)
+        dev_id = 63
+        pdu = pdutype(transaction_id=tid, dev_id=dev_id, **kwargs)
         assert pdu
         assert str(pdu)
-        assert pdu.slave_id == slave_id
+        assert pdu.dev_id == dev_id
         assert pdu.transaction_id == tid
         assert pdu.function_code > 0
 
     def test_pdu_register_as_byte(self):
         """Test validate functions."""
         registers =[b'ab', b'cd']
+        # NOT ALLOWED, NO conversion.
         req = reg_msg.ReadHoldingRegistersRequest(address=117, registers=registers, count=3)
         assert len(req.registers) == 2
-        assert req.registers[0] == 24930
-        assert req.registers[1] == 25444
+        assert req.registers[0] != 24930
+        assert req.registers[1] != 25444
 
     def test_pdu_validate_address(self):
         """Test validate functions."""
