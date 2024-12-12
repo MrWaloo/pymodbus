@@ -12,12 +12,12 @@ import logging
 import textwrap
 
 from pymodbus import pymodbus_apply_logging_config
-from pymodbus.factory import ClientDecoder, ServerDecoder
 from pymodbus.framer import (
     FramerAscii,
     FramerRTU,
     FramerSocket,
 )
+from pymodbus.pdu import DecodePDU
 
 
 _logger = logging.getLogger(__file__)
@@ -70,17 +70,18 @@ class Decoder:
         """Attempt to decode the supplied message."""
         value = message if self.encode else c.encode(message, "hex_codec")
         print("=" * 80)
-        print(f"Decoding Message {value}")
+        print(f"Decoding Message {value!r}")
         print("=" * 80)
         decoders = [
-            self.framer(ServerDecoder(), []),
-            self.framer(ClientDecoder(), []),
+            self.framer(DecodePDU(True)),
+            self.framer(DecodePDU(False)),
         ]
         for decoder in decoders:
             print(f"{decoder.decoder.__class__.__name__}")
             print("-" * 80)
             try:
-                decoder.processIncomingPacket(message, self.report)
+                _, pdu = decoder.processIncomingFrame(message)
+                self.report(pdu)
             except Exception:  # pylint: disable=broad-except
                 self.check_errors(decoder, message)
 

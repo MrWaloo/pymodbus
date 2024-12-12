@@ -28,7 +28,7 @@ class AsyncModbusTcpClient(ModbusBaseClient):
     :param source_address: source address of client
     :param reconnect_delay: Minimum delay in seconds.milliseconds before reconnecting.
     :param reconnect_delay_max: Maximum delay in seconds.milliseconds before reconnecting.
-    :param timeout: Timeout for a connection request, in seconds.
+    :param timeout: Timeout for connecting and receiving data, in seconds.
     :param retries: Max number of retries per request.
     :param on_connect_callback: Function that will be called just before a connection attempt.
 
@@ -54,6 +54,7 @@ class AsyncModbusTcpClient(ModbusBaseClient):
     def __init__(  # pylint: disable=too-many-arguments
         self,
         host: str,
+        *,
         framer: FramerType = FramerType.SOCKET,
         port: int = 502,
         name: str = "comm",
@@ -66,6 +67,8 @@ class AsyncModbusTcpClient(ModbusBaseClient):
     ) -> None:
         """Initialize Asyncio Modbus TCP Client."""
         if not hasattr(self,"comm_params"):
+            if framer not in [FramerType.SOCKET, FramerType.RTU, FramerType.ASCII]:
+                raise TypeError("Only FramerType SOCKET/RTU/ASCII allowed.")
             self.comm_params = CommParams(
                 comm_type=CommType.TCP,
                 host=host,
@@ -99,7 +102,7 @@ class ModbusTcpClient(ModbusBaseSyncClient):
     :param source_address: source address of client
     :param reconnect_delay: Not used in the sync client
     :param reconnect_delay_max: Not used in the sync client
-    :param timeout: Timeout for a connection request, in seconds.
+    :param timeout: Timeout for connecting and receiving data, in seconds.
     :param retries: Max number of retries per request.
 
     .. tip::
@@ -127,6 +130,7 @@ class ModbusTcpClient(ModbusBaseSyncClient):
     def __init__(
         self,
         host: str,
+        *,
         framer: FramerType = FramerType.SOCKET,
         port: int = 502,
         name: str = "comm",
@@ -138,6 +142,8 @@ class ModbusTcpClient(ModbusBaseSyncClient):
     ) -> None:
         """Initialize Modbus TCP Client."""
         if not hasattr(self,"comm_params"):
+            if framer not in [FramerType.SOCKET, FramerType.RTU, FramerType.ASCII]:
+                raise TypeError("Only FramerType SOCKET/RTU/ASCII allowed.")
             self.comm_params = CommParams(
                 comm_type=CommType.TCP,
                 host=host,
@@ -237,14 +243,16 @@ class ModbusTcpClient(ModbusBaseSyncClient):
             time_ = time.time()
 
             # If size isn't specified continue to read until timeout expires.
-            if size:
-                recv_size = size - data_length
-
+            if not size:
+                break
             # Timeout is reduced also if some data has been received in order
             # to avoid infinite loops when there isn't an expected response
             # size and the slave sends noisy data continuously.
             if time_ > end:
                 break
+
+            recv_size = size - data_length
+
         self.last_frame_end = round(time.time(), 6)
         return b"".join(data)
 

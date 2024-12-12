@@ -27,7 +27,7 @@ class AsyncModbusTlsClient(AsyncModbusTcpClient):
     :param source_address: Source address of client
     :param reconnect_delay: Minimum delay in seconds.milliseconds before reconnecting.
     :param reconnect_delay_max: Maximum delay in seconds.milliseconds before reconnecting.
-    :param timeout: Timeout for a connection request, in seconds.
+    :param timeout: Timeout for connecting and receiving data, in seconds.
     :param retries: Max number of retries per request.
     :param on_connect_callback: Function that will be called just before a connection attempt.
 
@@ -53,6 +53,7 @@ class AsyncModbusTlsClient(AsyncModbusTcpClient):
     def __init__(  # pylint: disable=too-many-arguments
         self,
         host: str,
+        *,
         sslctx: ssl.SSLContext = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT),
         framer: FramerType = FramerType.TLS,
         port: int = 802,
@@ -65,6 +66,8 @@ class AsyncModbusTlsClient(AsyncModbusTcpClient):
         on_connect_callback: Callable[[bool], None] | None = None,
     ):
         """Initialize Asyncio Modbus TLS Client."""
+        if framer not in [FramerType.TLS]:
+            raise TypeError("Only FramerType TLS allowed.")
         self.comm_params = CommParams(
             comm_type=CommType.TLS,
             host=host,
@@ -122,7 +125,7 @@ class ModbusTlsClient(ModbusTcpClient):
     :param source_address: Source address of client
     :param reconnect_delay: Not used in the sync client
     :param reconnect_delay_max: Not used in the sync client
-    :param timeout: Timeout for a connection request, in seconds.
+    :param timeout: Timeout for connecting and receiving data, in seconds.
     :param retries: Max number of retries per request.
 
     .. tip::
@@ -148,6 +151,7 @@ class ModbusTlsClient(ModbusTcpClient):
     def __init__(  # pylint: disable=too-many-arguments
         self,
         host: str,
+        *,
         sslctx: ssl.SSLContext = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT),
         framer: FramerType = FramerType.TLS,
         port: int = 802,
@@ -159,6 +163,8 @@ class ModbusTlsClient(ModbusTcpClient):
         retries: int = 3,
     ):
         """Initialize Modbus TLS Client."""
+        if framer not in [FramerType.TLS]:
+            raise TypeError("Only FramerType TLS allowed.")
         self.comm_params = CommParams(
             comm_type=CommType.TLS,
             host=host,

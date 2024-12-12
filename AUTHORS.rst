@@ -10,12 +10,14 @@ Pymodbus version 3 family
 -------------------------
 Thanks to
 
+- ahcm-dev
 - AKJ7
 - Alex
 - Alex Ruddick
 - Alexander Lanin
 - Alexandre CUER
 - Alois Hockenschlohe
+- Andy Walker
 - Arjan
 - André Srinivasan
 - andrew-harness
@@ -27,6 +29,7 @@ Thanks to
 - Chandler Riehm
 - Chris Hung
 - Christian Krause
+- Daniel Rauber
 - dhoomakethu
 - doelki
 - DominicDataP
@@ -56,14 +59,15 @@ Thanks to
 - julian
 - Justin Standring
 - Kenny Johansson
-- Martyy
-- Matthias Straka
+- Kürşat Aktaş
 - laund
 - Logan Gunthorpe
 - Marko Luther
-- Logan Gunthorpe
-- Marko Luther
+- Martyy
+- Máté Szabó
 - Matthias Straka
+- Matthias Urlichs
+- Michel F
 - Mickaël Schoentgen
 - Pavel Kostromitinov
 - peufeu2
@@ -77,6 +81,7 @@ Thanks to
 - Totally a booplicate
 - WouterTuinstra
 - wriswith
+- Yash Jani
 - Yohrog
 - yyokusa
 

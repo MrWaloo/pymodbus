@@ -24,9 +24,8 @@ except ImportError:
 from pymodbus.datastore import ModbusServerContext, ModbusSimulatorContext
 from pymodbus.datastore.simulator import Label
 from pymodbus.device import ModbusDeviceIdentification
-from pymodbus.factory import ServerDecoder
 from pymodbus.logging import Log
-from pymodbus.pdu import ExceptionResponse
+from pymodbus.pdu import DecodePDU, ExceptionResponse
 from pymodbus.server.async_io import (
     ModbusSerialServer,
     ModbusTcpServer,
@@ -215,7 +214,7 @@ class ModbusSimulatorServer:
         self.refresh_rate = 0
         self.register_filter: list[int] = []
         self.call_list: list[CallTracer] = []
-        self.request_lookup = ServerDecoder.getFCdict()
+        self.request_lookup = DecodePDU(True).lookup
         self.call_monitor = CallTypeMonitor()
         self.call_response = CallTypeResponse()
         app_key = getattr(web, 'AppKey', str)  # fall back to str for aiohttp < 3.9.0
@@ -365,15 +364,15 @@ class ModbusSimulatorServer:
 
         function_error = ""
         for i, txt in (
-            (1, "IllegalFunction"),
-            (2, "IllegalAddress"),
-            (3, "IllegalValue"),
-            (4, "SlaveFailure"),
-            (5, "Acknowledge"),
-            (6, "SlaveBusy"),
-            (7, "MemoryParityError"),
-            (10, "GatewayPathUnavailable"),
-            (11, "GatewayNoResponse"),
+            (1, "ILLEGAL_FUNCTION"),
+            (2, "ILLEGAL_ADDRESS"),
+            (3, "ILLEGAL_VALUE"),
+            (4, "SLAVE_FAILURE"),
+            (5, "ACKNOWLEDGE"),
+            (6, "SLAVE_BUSY"),
+            (7, "MEMORY_PARITY_ERROR"),
+            (10, "GATEWAY_PATH_UNAVIABLE"),
+            (11, "GATEWAY_NO_RESPONSE"),
         ):
             selected = "selected" if i == self.call_response.error_response else ""
             function_error += f"<option value={i} {selected}>{txt}</option>"
@@ -391,10 +390,10 @@ class ModbusSimulatorServer:
         for function in self.request_lookup.values():
             selected = (
                 "selected"
-                if function.function_code == self.call_monitor.function  #type: ignore[attr-defined]
+                if function.function_code == self.call_monitor.function
                 else ""
             )
-            function_codes += f"<option value={function.function_code} {selected}>{function.function_code_name}</option>"  #type: ignore[attr-defined]
+            function_codes += f"<option value={function.function_code} {selected}>function code name</option>"
         simulation_action = (
             "ACTIVE" if self.call_response.active != RESPONSE_INACTIVE else ""
         )
@@ -527,15 +526,15 @@ class ModbusSimulatorServer:
 
         function_error = []
         for i, txt in (
-            (1, "IllegalFunction"),
-            (2, "IllegalAddress"),
-            (3, "IllegalValue"),
-            (4, "SlaveFailure"),
-            (5, "Acknowledge"),
-            (6, "SlaveBusy"),
-            (7, "MemoryParityError"),
-            (10, "GatewayPathUnavailable"),
-            (11, "GatewayNoResponse"),
+            (1, "ILLEGAL_FUNCTION"),
+            (2, "ILLEGAL_ADDRESS"),
+            (3, "ILLEGAL_VALUE"),
+            (4, "SLAVE_FAILURE"),
+            (5, "ACKNOWLEDGE"),
+            (6, "SLAVE_BUSY"),
+            (7, "MEMORY_PARITY_ERROR"),
+            (10, "GATEWAY_PATH_UNAVIABLE"),
+            (11, "GATEWAY_NO_RESPONSE"),
         ):
             function_error.append({
                 "value": i,
@@ -557,9 +556,9 @@ class ModbusSimulatorServer:
         function_codes = []
         for function in self.request_lookup.values():
             function_codes.append({
-                "value": function.function_code,    # type: ignore[attr-defined]
-                "text": function.function_code_name,    # type: ignore[attr-defined]
-                "selected": function.function_code == self.call_monitor.function  # type: ignore[attr-defined]
+                "value": function.function_code,
+                "text": "function code name",
+                "selected": function.function_code == self.call_monitor.function
             })
 
         simulation_action = "ACTIVE" if self.call_response.active != RESPONSE_INACTIVE else ""
@@ -756,8 +755,8 @@ class ModbusSimulatorServer:
         skip_encoding = False
         if self.call_response.active == RESPONSE_EMPTY:
             Log.warning("Sending empty response")
-            response.should_respond = False
-        elif self.call_response.active == RESPONSE_NORMAL:
+            return None, False
+        if self.call_response.active == RESPONSE_NORMAL:
             if self.call_response.delay:
                 Log.warning(
                     "Delaying response by {}s for all incoming requests",

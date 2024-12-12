@@ -1,249 +1,142 @@
 """Contains base classes for modbus request/response/error packets."""
+from __future__ import annotations
 
-
-# pylint: disable=missing-type-doc
+import asyncio
 import struct
+from abc import abstractmethod
+from collections.abc import Sequence
+from enum import Enum
+from typing import cast
 
 from pymodbus.exceptions import NotImplementedException
 from pymodbus.logging import Log
-from pymodbus.utilities import rtuFrameSize
 
 
-# --------------------------------------------------------------------------- #
-# Base PDUs
-# --------------------------------------------------------------------------- #
 class ModbusPDU:
-    """Base class for all Modbus messages.
+    """Base class for all Modbus messages."""
 
-    .. attribute:: transaction_id
+    function_code: int = 0
+    sub_function_code: int = -1
+    rtu_frame_size: int = 0
+    rtu_byte_count_pos: int = 0
 
-       This value is used to uniquely identify a request
-       response pair.  It can be implemented as a simple counter
-
-    .. attribute:: slave_id
-
-       This is used to route the request to the correct child. In
-       the TCP modbus, it is used for routing (or not used at all. However,
-       for the serial versions, it is used to specify which child to perform
-       the requests against. The value 0x00 represents the broadcast address
-       (also 0xff).
-
-    .. attribute:: check
-
-       This is used for LRC/CRC in the serial modbus protocols
-
-    .. attribute:: skip_encode
-
-       This is used when the message payload has already been encoded.
-       Generally this will occur when the PayloadBuilder is being used
-       to create a complicated message. By setting this to True, the
-       request will pass the currently encoded message through instead
-       of encoding it again.
-    """
-
-    def __init__(self, slave, transaction, skip_encode):
-        """Initialize the base data for a modbus request.
-
-        :param slave: Modbus slave slave ID
-
-        """
-        self.transaction_id = transaction
-        self.slave_id = slave
-        self.skip_encode = skip_encode
-        self.check = 0x0000
-
-    def encode(self):
-        """Encode the message.
-
-        :raises: A not implemented exception
-        """
-        raise NotImplementedException()
-
-    def decode(self, data):
-        """Decode data part of the message.
-
-        :param data: is a string object
-        :raises NotImplementedException:
-        """
-        raise NotImplementedException()
-
-    @classmethod
-    def calculateRtuFrameSize(cls, buffer):
-        """Calculate the size of a PDU.
-
-        :param buffer: A buffer containing the data that have been received.
-        :returns: The number of bytes in the PDU.
-        :raises NotImplementedException:
-        """
-        if hasattr(cls, "_rtu_frame_size"):
-            return cls._rtu_frame_size
-        if hasattr(cls, "_rtu_byte_count_pos"):
-            return rtuFrameSize(buffer, cls._rtu_byte_count_pos)
-        raise NotImplementedException(
-            f"Cannot determine RTU frame size for {cls.__name__}"
-        )
-
-
-class ModbusRequest(ModbusPDU):
-    """Base class for a modbus request PDU."""
-
-    function_code = -1
-
-    def __init__(self, slave, transaction, skip_encode):
-        """Proxy to the lower level initializer.
-
-        :param slave: Modbus slave slave ID
-        """
-        super().__init__(slave, transaction, skip_encode)
-        self.fut = None
-
-    def doException(self, exception):
-        """Build an error response based on the function.
-
-        :param exception: The exception to return
-        :raises: An exception response
-        """
-        exc = ExceptionResponse(self.function_code, exception)
-        Log.error("Exception response {}", exc)
-        return exc
-
-
-class ModbusResponse(ModbusPDU):
-    """Base class for a modbus response PDU.
-
-    .. attribute:: should_respond
-
-       A flag that indicates if this response returns a result back
-       to the client issuing the request
-
-    .. attribute:: _rtu_frame_size
-
-       Indicates the size of the modbus rtu response used for
-       calculating how much to read.
-    """
-
-    should_respond = True
-    function_code = 0x00
-
-    def __init__(self, slave, transaction, skip_encode):
-        """Proxy the lower level initializer.
-
-        :param slave: Modbus slave slave ID
-
-        """
-        super().__init__(slave, transaction, skip_encode)
-        self.bits = []
-        self.registers = []
-        self.request = None
+    def __init__(self,
+            slave_id: int = 0,
+            transaction_id: int = 0,
+            address: int = 0,
+            count: int = 0,
+            bits: list[bool] | None = None,
+            registers: Sequence[int | bytes] | None = None,
+            status: int = 1,
+        ) -> None:
+        """Initialize the base data for a modbus request."""
+        self.slave_id: int = slave_id
+        self.transaction_id: int = transaction_id
+        self.address: int = address
+        self.bits: list[bool] = bits or []
+        if not registers:
+            registers = []
+        self.registers: list[int] = cast(list[int], registers)
+        for i, value in enumerate(registers):
+            if isinstance(value, bytes):
+                self.registers[i] = int.from_bytes(value, byteorder="big")
+        self.count: int = count or len(registers)
+        self.status: int = status
+        self.fut: asyncio.Future
 
     def isError(self) -> bool:
         """Check if the error is a success or failure."""
         return self.function_code > 0x80
 
+    def validateCount(self, max_count: int, count: int = -1) -> None:
+        """Validate API supplied count."""
+        if count == -1:
+            count = self.count
+        if not 1 <= count <= max_count:
+            raise ValueError(f"1 < count {count} < {max_count} !")
 
-# --------------------------------------------------------------------------- #
-# Exception PDUs
-# --------------------------------------------------------------------------- #
-class ModbusExceptions:  # pylint: disable=too-few-public-methods
-    """An enumeration of the valid modbus exceptions."""
+    def validateAddress(self, address: int = -1) -> None:
+        """Validate API supplied address."""
+        if address == -1:
+            address = self.address
+        if not 0 <= address <= 65535:
+            raise ValueError(f"9 < address {address} < 65535 !")
 
-    IllegalFunction = 0x01
-    IllegalAddress = 0x02
-    IllegalValue = 0x03
-    SlaveFailure = 0x04
-    Acknowledge = 0x05
-    SlaveBusy = 0x06
-    NegativeAcknowledge = 0x07
-    MemoryParityError = 0x08
-    GatewayPathUnavailable = 0x0A
-    GatewayNoResponse = 0x0B
+    def __str__(self) -> str:
+        """Build a representation of an exception response."""
+        return (
+            f"{self.__class__.__name__}("
+            f"slave_id={self.slave_id}, "
+            f"transaction_id={self.transaction_id}, "
+            f"address={self.address}, "
+            f"count={self.count}, "
+            f"bits={self.bits!s}, "
+            f"registers={self.registers!s}, "
+            f"status={self.status!s})"
+        )
+
+    def get_response_pdu_size(self) -> int:
+        """Calculate response pdu size."""
+        return 0
+
+    @abstractmethod
+    def encode(self) -> bytes:
+        """Encode the message."""
+
+    @abstractmethod
+    def decode(self, data: bytes) -> None:
+        """Decode data part of the message."""
 
     @classmethod
-    def decode(cls, code):
-        """Give an error code, translate it to a string error name.
-
-        :param code: The code number to translate
-        """
-        values = {
-            v: k
-            for k, v in iter(cls.__dict__.items())
-            if not k.startswith("__") and not callable(v)
-        }
-        return values.get(code, None)
-
-
-class ExceptionResponse(ModbusResponse):
-    """Base class for a modbus exception PDU."""
-
-    ExceptionOffset = 0x80
-    _rtu_frame_size = 5
-
-    def __init__(self, function_code, exception_code=None, slave=1, transaction=0, skip_encode=False):
-        """Initialize the modbus exception response.
-
-        :param function_code: The function to build an exception response for
-        :param exception_code: The specific modbus exception to return
-        """
-        super().__init__(slave, transaction, skip_encode)
-        self.original_code = function_code
-        self.function_code = function_code | self.ExceptionOffset
-        self.exception_code = exception_code
-
-    def encode(self):
-        """Encode a modbus exception response.
-
-        :returns: The encoded exception packet
-        """
-        return struct.pack(">B", self.exception_code)
-
-    def decode(self, data):
-        """Decode a modbus exception response.
-
-        :param data: The packet data to decode
-        """
-        self.exception_code = int(data[0])
-
-    def __str__(self):
-        """Build a representation of an exception response.
-
-        :returns: The string representation of an exception response
-        """
-        message = ModbusExceptions.decode(self.exception_code)
-        parameters = (self.function_code, self.original_code, message)
-        return (
-            "Exception Response(%d, %d, %s)"  # pylint: disable=consider-using-f-string
-            % parameters
+    def calculateRtuFrameSize(cls, data: bytes) -> int:
+        """Calculate the size of a PDU."""
+        if cls.rtu_frame_size:
+            return cls.rtu_frame_size
+        if cls.rtu_byte_count_pos:
+            if len(data) < cls.rtu_byte_count_pos +1:
+                return 0
+            return int(data[cls.rtu_byte_count_pos]) + cls.rtu_byte_count_pos + 3
+        raise NotImplementedException(
+            f"Cannot determine RTU frame size for {cls.__name__}"
         )
 
 
-class IllegalFunctionRequest(ModbusRequest):
-    """Define the Modbus slave exception type "Illegal Function".
+class ModbusExceptions(int, Enum):
+    """An enumeration of the valid modbus exceptions."""
 
-    This exception code is returned if the slave::
+    ILLEGAL_FUNCTION = 0x01
+    ILLEGAL_ADDRESS = 0x02
+    ILLEGAL_VALUE = 0x03
+    SLAVE_FAILURE = 0x04
+    ACKNOWLEDGE = 0x05
+    SLAVE_BUSY = 0x06
+    NEGATIVE_ACKNOWLEDGE = 0x07
+    MEMORY_PARITY_ERROR = 0x08
+    GATEWAY_PATH_UNAVIABLE = 0x0A
+    GATEWAY_NO_RESPONSE = 0x0B
 
-        - does not implement the function code **or**
-        - is not in a state that allows it to process the function
-    """
 
-    ErrorCode = 1
+class ExceptionResponse(ModbusPDU):
+    """Base class for a modbus exception PDU."""
 
-    def __init__(self, function_code, slave, transaction, xskip_encode):
-        """Initialize a IllegalFunctionRequest.
+    rtu_frame_size = 5
 
-        :param function_code: The function we are erroring on
-        """
-        super().__init__(slave, transaction, xskip_encode)
-        self.function_code = function_code
+    def __init__(
+            self,
+            function_code: int,
+            exception_code: int = 0,
+            slave: int = 1,
+            transaction: int = 0) -> None:
+        """Initialize the modbus exception response."""
+        super().__init__(transaction_id=transaction, slave_id=slave)
+        self.function_code = function_code | 0x80
+        self.exception_code = exception_code
+        Log.error(f"Exception response {self.function_code} / {self.exception_code}")
 
-    def decode(self, _data):
-        """Decode so this failure will run correctly."""
+    def encode(self) -> bytes:
+        """Encode a modbus exception response."""
+        return struct.pack(">B", self.exception_code)
 
-    def encode(self):
-        """Decode so this failure will run correctly."""
-
-    async def execute(self, _context):
-        """Build an illegal function request error response.
-
-        :returns: The error response packet
-        """
-        return ExceptionResponse(self.function_code, self.ErrorCode)
+    def decode(self, data: bytes) -> None:
+        """Decode a modbus exception response."""
+        self.exception_code = int(data[0])

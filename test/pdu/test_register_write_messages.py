@@ -1,7 +1,7 @@
 """Test register write messages."""
 from pymodbus.payload import BinaryPayloadBuilder, Endian
 from pymodbus.pdu import ModbusExceptions
-from pymodbus.pdu.register_write_message import (
+from pymodbus.pdu.register_message import (
     MaskWriteRegisterRequest,
     MaskWriteRegisterResponse,
     WriteMultipleRegistersRequest,
@@ -9,7 +9,8 @@ from pymodbus.pdu.register_write_message import (
     WriteSingleRegisterRequest,
     WriteSingleRegisterResponse,
 )
-from test.conftest import MockContext, MockLastValuesContext
+
+from ..conftest import MockLastValuesContext
 
 
 # ---------------------------------------------------------------------------#
@@ -41,19 +42,13 @@ class TestWriteRegisterMessages:
         builder.add_16bit_uint(0x1234)
         self.payload = builder.build()
         self.write = {
-            WriteSingleRegisterRequest(1, self.value): b"\x00\x01\xab\xcd",
-            WriteSingleRegisterResponse(1, self.value): b"\x00\x01\xab\xcd",
+            WriteSingleRegisterRequest(address=1, registers=[self.value]): b"\x00\x01\xab\xcd",
+            WriteSingleRegisterResponse(address=1, registers=[self.value]): b"\x00\x01\xab\xcd",
             WriteMultipleRegistersRequest(
-                1, self.values
+                address=1, registers=self.values
             ): b"\x00\x01\x00\x03\x06\x00\x0a\x00\x0b\x00\x0c",
-            WriteMultipleRegistersRequest(1, 0xD): b"\x00\x01\x00\x01\x02\x00\x0D",
-            WriteMultipleRegistersResponse(1, 5): b"\x00\x01\x00\x05",
-            WriteSingleRegisterRequest(
-                1, self.payload[0], skip_encode=True
-            ): b"\x00\x01\x12\x34",
-            WriteMultipleRegistersRequest(
-                1, self.payload, skip_encode=True
-            ): b"\x00\x01\x00\x01\x02\x12\x34",
+            WriteMultipleRegistersRequest(address=1, registers=[0xD]): b"\x00\x01\x00\x01\x02\x00\x0D",
+            WriteMultipleRegistersResponse(address=1, count=5): b"\x00\x01\x00\x05",
         }
 
     def test_register_write_requests_encode(self):
@@ -75,55 +70,47 @@ class TestWriteRegisterMessages:
 
     def test_invalid_write_multiple_registers_request(self):
         """Test invalid write multiple registers request."""
-        request = WriteMultipleRegistersRequest(0, None)
-        assert not request.values
+        request = WriteMultipleRegistersRequest(address=0, registers=None)
+        assert not request.registers
 
     def test_serializing_to_string(self):
         """Test serializing to string."""
         for request in iter(self.write.keys()):
             assert str(request)
 
-    async def test_write_single_register_request(self):
+    async def test_write_single_register_request(self, mock_context):
         """Test write single register request."""
-        context = MockContext()
-        request = WriteSingleRegisterRequest(0x00, 0xF0000)
-        result = await request.execute(context)
-        assert result.exception_code == ModbusExceptions.IllegalValue
+        context = mock_context()
+        request = WriteSingleRegisterRequest(address=0x00, registers=[0xF0000])
+        result = await request.update_datastore(context)
+        assert result.exception_code == ModbusExceptions.ILLEGAL_VALUE
 
-        request.value = 0x00FF
-        result = await request.execute(context)
-        assert result.exception_code == ModbusExceptions.IllegalAddress
+        request.registers[0] = 0x00FF
+        result = await request.update_datastore(context)
+        assert result.exception_code == ModbusExceptions.ILLEGAL_ADDRESS
 
         context.valid = True
-        result = await request.execute(context)
+        result = await request.update_datastore(context)
         assert result.function_code == request.function_code
 
-    async def test_write_multiple_register_request(self):
+    async def test_write_multiple_register_request(self, mock_context):
         """Test write multiple register request."""
-        context = MockContext()
-        request = WriteMultipleRegistersRequest(0x00, [0x00] * 10)
-        result = await request.execute(context)
-        assert result.exception_code == ModbusExceptions.IllegalAddress
-
-        request.count = 0x05  # bytecode != code * 2
-        result = await request.execute(context)
-        assert result.exception_code == ModbusExceptions.IllegalValue
+        context = mock_context()
+        request = WriteMultipleRegistersRequest(address=0x00, registers=[0x00] * 10)
+        result = await request.update_datastore(context)
+        assert result.exception_code == ModbusExceptions.ILLEGAL_ADDRESS
 
         request.count = 0x800  # outside of range
-        result = await request.execute(context)
-        assert result.exception_code == ModbusExceptions.IllegalValue
+        result = await request.update_datastore(context)
+        assert result.exception_code == ModbusExceptions.ILLEGAL_VALUE
 
         context.valid = True
-        request = WriteMultipleRegistersRequest(0x00, [0x00] * 10)
-        result = await request.execute(context)
+        request = WriteMultipleRegistersRequest(address=0x00, registers=[0x00] * 10)
+        result = await request.update_datastore(context)
         assert result.function_code == request.function_code
 
-        request = WriteMultipleRegistersRequest(0x00, 0x00)
-        result = await request.execute(context)
-        assert result.function_code == request.function_code
-
-        request = WriteMultipleRegistersRequest(0x00, [0x00])
-        result = await request.execute(context)
+        request = WriteMultipleRegistersRequest(address=0x00, registers=[0x00])
+        result = await request.update_datastore(context)
         assert result.function_code == request.function_code
 
         # -----------------------------------------------------------------------#
@@ -145,7 +132,7 @@ class TestWriteRegisterMessages:
         assert handle.and_mask == 0x00F2
         assert handle.or_mask == 0x0025
 
-    async def test_mask_write_register_request_execute(self):
+    async def test_mask_write_register_request_update_datastore(self):
         """Test write register request valid execution."""
         # The test uses the 4 nibbles of the 16-bit values to test
         # the combinations:
@@ -155,24 +142,24 @@ class TestWriteRegisterMessages:
         #     and_mask=F, or_mask=F
         context = MockLastValuesContext(valid=True, default=0xAA55)
         handle = MaskWriteRegisterRequest(0x0000, 0x0F0F, 0x00FF)
-        result = await handle.execute(context)
+        result = await handle.update_datastore(context)
         assert isinstance(result, MaskWriteRegisterResponse)
         assert context.last_values == [0x0AF5]
 
-    async def test_mask_write_register_request_invalid_execute(self):
-        """Test write register request execute with invalid data."""
-        context = MockContext(valid=False, default=0x0000)
+    async def test_mask_write_register_request_invalid_update_datastore(self, mock_context):
+        """Test write register request update_datastore with invalid data."""
+        context = mock_context(valid=False, default=0x0000)
         handle = MaskWriteRegisterRequest(0x0000, -1, 0x1010)
-        result = await handle.execute(context)
-        assert ModbusExceptions.IllegalValue == result.exception_code
+        result = await handle.update_datastore(context)
+        assert result.exception_code == ModbusExceptions.ILLEGAL_VALUE
 
         handle = MaskWriteRegisterRequest(0x0000, 0x0101, -1)
-        result = await handle.execute(context)
-        assert ModbusExceptions.IllegalValue == result.exception_code
+        result = await handle.update_datastore(context)
+        assert result.exception_code == ModbusExceptions.ILLEGAL_VALUE
 
         handle = MaskWriteRegisterRequest(0x0000, 0x0101, 0x1010)
-        result = await handle.execute(context)
-        assert ModbusExceptions.IllegalAddress == result.exception_code
+        result = await handle.update_datastore(context)
+        assert result.exception_code == ModbusExceptions.ILLEGAL_ADDRESS
 
         # -----------------------------------------------------------------------#
         # Mask Write Register Response

@@ -205,24 +205,29 @@ async def _check_system_health():
     assert not NullModem.is_dirty()
 
 
-class MockContext(ModbusBaseSlaveContext):
-    """Mock context."""
+@pytest.fixture(name="mock_context")
+def define_mock_context():
+    """Define context class."""
+    class MockContext(ModbusBaseSlaveContext):
+        """Mock context."""
 
-    def __init__(self, valid=False, default=True):
-        """Initialize."""
-        self.valid = valid
-        self.default = default
+        def __init__(self, valid=False, default=True):
+            """Initialize."""
+            self.valid = valid
+            self.default = default
 
-    def validate(self, _fc, _address, _count=0):
-        """Validate values."""
-        return self.valid
+        def validate(self, _fc, _address, _count=0):
+            """Validate values."""
+            return self.valid
 
-    def getValues(self, _fc, _address, count=0):
-        """Get values."""
-        return [self.default] * count
+        def getValues(self, _fc, _address, count=0):
+            """Get values."""
+            return [self.default] * count
 
-    def setValues(self, _fc, _address, _values):
-        """Set values."""
+        def setValues(self, _fc, _address, _values):
+            """Set values."""
+
+    return MockContext
 
 
 class MockLastValuesContext(ModbusBaseSlaveContext):
@@ -245,21 +250,6 @@ class MockLastValuesContext(ModbusBaseSlaveContext):
     def setValues(self, _fc, _address, values):
         """Set values."""
         self.last_values = values
-
-
-class FakeList:
-    """Todo, replace with magic mock."""
-
-    def __init__(self, size):
-        """Initialize."""
-        self.size = size
-
-    def __len__(self):
-        """Get length."""
-        return self.size
-
-    def __iter__(self):
-        """Iterate."""
 
 
 class mockSocket:  # pylint: disable=invalid-name
@@ -287,17 +277,7 @@ class mockSocket:  # pylint: disable=invalid-name
         """Receive."""
         if not self.packets or not size:
             return b""
-        # if not self.buffer:
-        #    self.buffer = self.packets.popleft()
-        # if size >= len(self.buffer):
-        #     retval = self.buffer
-        #     self.buffer = None
-        # else:
-        #     retval = self.buffer[0:size]
-        #    self.buffer = self.buffer[size]
-        self.buffer = self.packets.popleft()
-        retval = self.buffer
-        self.buffer = None
+        retval = self.packets.popleft()
         self.in_waiting -= len(retval)
         return retval
 
@@ -308,6 +288,10 @@ class mockSocket:  # pylint: disable=invalid-name
     def recvfrom(self, size):
         """Receive from."""
         return [self.recv(size)]
+
+    def write(self, msg):
+        """Write."""
+        return self.send(msg)
 
     def send(self, msg):
         """Send."""

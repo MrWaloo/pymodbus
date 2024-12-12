@@ -9,11 +9,12 @@ from contextlib import suppress
 
 from pymodbus.datastore import ModbusServerContext
 from pymodbus.device import ModbusControlBlock, ModbusDeviceIdentification
-from pymodbus.exceptions import NoSuchSlaveException
-from pymodbus.factory import ServerDecoder
+from pymodbus.exceptions import ModbusException, NoSuchSlaveException
 from pymodbus.framer import FRAMER_NAME_TO_CLASS, FramerBase, FramerType
 from pymodbus.logging import Log
+from pymodbus.pdu import DecodePDU
 from pymodbus.pdu import ModbusExceptions as merror
+from pymodbus.pdu.pdu import ExceptionResponse
 from pymodbus.transport import CommParams, CommType, ModbusProtocol
 
 
@@ -42,12 +43,14 @@ class ModbusServerRequestHandler(ModbusProtocol):
             timeout_connect=0.0,
             host=owner.comm_params.source_address[0],
             port=owner.comm_params.source_address[1],
+            handle_local_echo=owner.comm_params.handle_local_echo,
         )
         super().__init__(params, True)
         self.server = owner
         self.running = False
         self.receive_queue: asyncio.Queue = asyncio.Queue()
         self.handler_task = None  # coroutine to be run on asyncio loop
+        self.databuffer = b''
         self.framer: FramerBase
         self.loop = asyncio.get_running_loop()
 
@@ -68,14 +71,9 @@ class ModbusServerRequestHandler(ModbusProtocol):
         if self.server.broadcast_enable:
             if 0 not in slaves:
                 slaves.append(0)
-        if 0 in slaves:
-            slaves = []
         try:
             self.running = True
-            self.framer = self.server.framer(
-                self.server.decoder,
-                slaves,
-            )
+            self.framer = self.server.framer(self.server.decoder)
 
             # schedule the connection handler on the event loop
             self.handler_task = asyncio.create_task(self.handle())
@@ -122,11 +120,21 @@ class ModbusServerRequestHandler(ModbusProtocol):
 
         # if broadcast is enabled make sure to
         # process requests to address 0
-        Log.debug("Handling data: {}", data, ":hex")
-        self.framer.processIncomingPacket(
-            data=data,
-            callback=lambda x: self.execute(x, *addr),
-        )
+        self.databuffer += data
+        Log.debug("Handling data: {}", self.databuffer, ":hex")
+        try:
+            used_len, pdu = self.framer.processIncomingFrame(self.databuffer)
+        except ModbusException:
+            pdu = ExceptionResponse(
+                40,
+                exception_code=merror.ILLEGAL_FUNCTION
+            )
+            self.server_send(pdu, 0)
+            pdu = None
+            used_len = len(self.databuffer)
+        self.databuffer = self.databuffer[used_len:]
+        if pdu:
+           self.execute(pdu, *addr)
 
     async def handle(self) -> None:
         """Coroutine which represents a single master <=> slave conversation.
@@ -152,7 +160,7 @@ class ModbusServerRequestHandler(ModbusProtocol):
                     self._log_exception()
                     self.running = False
             except Exception as exc:  # pylint: disable=broad-except
-                # force TCP socket termination as processIncomingPacket
+                # force TCP socket termination as framer
                 # should handle application layer errors
                 Log.error(
                     'Unknown exception "{}" on stream {} forcing disconnect',
@@ -181,23 +189,23 @@ class ModbusServerRequestHandler(ModbusProtocol):
                 # if broadcasting then execute on all slave contexts,
                 # note response will be ignored
                 for slave_id in self.server.context.slaves():
-                    response = await request.execute(self.server.context[slave_id])
+                    response = await request.update_datastore(self.server.context[slave_id])
             else:
                 context = self.server.context[request.slave_id]
-                response = await request.execute(context)
+                response = await request.update_datastore(context)
 
         except NoSuchSlaveException:
             Log.error("requested slave does not exist: {}", request.slave_id)
             if self.server.ignore_missing_slaves:
                 return  # the client will simply timeout waiting for a response
-            response = request.doException(merror.GatewayNoResponse)
+            response = ExceptionResponse(0x00, merror.GATEWAY_NO_RESPONSE)
         except Exception as exc:  # pylint: disable=broad-except
             Log.error(
                 "Datastore unable to fulfill request: {}; {}",
                 exc,
                 traceback.format_exc(),
             )
-            response = request.doException(merror.SlaveFailure)
+            response = ExceptionResponse(0x00, merror.SLAVE_FAILURE)
         # no response when broadcasting
         if not broadcast:
             response.transaction_id = request.transaction_id
@@ -211,11 +219,11 @@ class ModbusServerRequestHandler(ModbusProtocol):
         """Send message."""
         if kwargs.get("skip_encoding", False):
             self.send(message, addr=addr)
-        elif message.should_respond:
-            pdu = self.framer.buildPacket(message)
-            self.send(pdu, addr=addr)
-        else:
+        if not message:
             Log.debug("Skipping sending response!!")
+        else:
+            pdu = self.framer.buildFrame(message)
+            self.send(pdu, addr=addr)
 
     async def _recv_(self):
         """Receive data from the network."""
@@ -260,7 +268,7 @@ class ModbusBaseServer(ModbusProtocol):
             True,
         )
         self.loop = asyncio.get_running_loop()
-        self.decoder = ServerDecoder()
+        self.decoder = DecodePDU(True)
         self.context = context or ModbusServerContext()
         self.control = ModbusControlBlock()
         self.ignore_missing_slaves = ignore_missing_slaves
@@ -535,6 +543,7 @@ class ModbusSerialServer(ModbusBaseServer):
                 parity=kwargs.get("parity", "N"),
                 baudrate=kwargs.get("baudrate", 19200),
                 stopbits=kwargs.get("stopbits", 1),
+                handle_local_echo=kwargs.get("handle_local_echo", False)
             ),
             context=context,
             ignore_missing_slaves=kwargs.get("ignore_missing_slaves", False),

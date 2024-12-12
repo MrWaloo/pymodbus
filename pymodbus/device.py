@@ -233,7 +233,7 @@ class ModbusDeviceIdentification:
 
 
 class DeviceInformationFactory:  # pylint: disable=too-few-public-methods
-    """This is a helper factory.
+    """This is a helper.
 
     That really just hides
     some of the complexity of processing the device information
@@ -323,30 +323,27 @@ class ModbusCountersHandler:
     0x0D  3  Return Slave Exception Error Count
 
              Quantity of MODBUS exception error detected by the remote device
-             since its last restart, clear counters operation, or power-up.  It
-             comprises also the error detected in broadcast messages even if an
-             exception message is not returned in this case.
+             since its last restart, clear counters operation, or power-up.
              Exception errors are described and listed in "MODBUS Application
              Protocol Specification" document.
 
     0xOE  4  Return Slave Message Count
 
-             Quantity of messages addressed to the remote device,  including
-             broadcast messages, that the remote device has processed since its
-             last restart, clear counters operation, or power-up.
+             Quantity of messages addressed to the remote device that the remote
+             device has processed since its last restart, clear counters operation,
+             or power-up.
 
     0x0F  5  Return Slave No Response Count
 
              Quantity of messages received by the remote device for which it
              returned no response (neither a normal response nor an exception
              response), since its last restart, clear counters operation, or
-             power-up. Then, this counter counts the number of broadcast
-             messages it has received.
+             power-up.
 
     0x10  6  Return Slave NAK Count
 
              Quantity of messages addressed to the remote device for which it
-             returned a Negative Acknowledge (NAK) exception response, since
+             returned a Negative ACKNOWLEDGE (NAK) exception response, since
              its last restart, clear counters operation, or power-up. Exception
              responses are described and listed in "MODBUS Application Protocol
              Specification" document.
@@ -378,7 +375,7 @@ class ModbusCountersHandler:
         "SlaveMessage",
         "SlaveNoResponse",
         "SlaveNAK",
-        "SlaveBusy",
+        "SLAVE_BUSY",
         "BusCharacterOverrun",
     ]
 
@@ -428,7 +425,7 @@ class ModbusCountersHandler:
     SlaveMessage = dict_property(lambda s: s.__data, 3)  # pylint: disable=protected-access
     SlaveNoResponse = dict_property(lambda s: s.__data, 4)  # pylint: disable=protected-access
     SlaveNAK = dict_property(lambda s: s.__data, 5)  # pylint: disable=protected-access
-    SlaveBusy = dict_property(lambda s: s.__data, 6)  # pylint: disable=protected-access
+    SLAVE_BUSY = dict_property(lambda s: s.__data, 6)  # pylint: disable=protected-access
     BusCharacterOverrun = dict_property(lambda s: s.__data, 7)  # pylint: disable=protected-access
     Event = dict_property(lambda s: s.__data, 8)  # pylint: disable=protected-access
     # fmt: on

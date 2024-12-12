@@ -17,7 +17,6 @@ from pymodbus.exceptions import ConnectionException
 from pymodbus.framer import (
     FramerAscii,
     FramerRTU,
-    FramerSocket,
     FramerTLS,
 )
 from test.conftest import mockSocket
@@ -86,10 +85,10 @@ class TestSynchronousClient:  # pylint: disable=too-many-public-methods
         client.socket = mockSocket(copy_send=False)
         client.socket.mock_prepare_receive(test_msg)
         client.socket.mock_prepare_receive(test_msg)
-        reply_ok = client.read_input_registers(0x820, 1, 1)
+        reply_ok = client.read_input_registers(0x820, count=1, slave=1)
         assert not reply_ok.isError()
-        reply_none = client.read_input_registers(0x40, 10, 1)
-        assert reply_none.isError()
+        reply_ok = client.read_input_registers(0x40, count=10, slave=1)
+        assert not reply_ok.isError()
         client.close()
 
     def test_udp_client_repr(self):
@@ -313,10 +312,6 @@ class TestSynchronousClient:  # pylint: disable=too-many-public-methods
             ModbusSerialClient("/dev/null", framer=FramerType.RTU).framer,
             FramerRTU,
         )
-        assert isinstance(
-            ModbusSerialClient("/dev/null", framer=FramerType.SOCKET).framer,
-            FramerSocket,
-        )
 
     def test_sync_serial_rtu_client_timeouts(self):
         """Test sync serial rtu."""
@@ -421,6 +416,21 @@ class TestSynchronousClient:  # pylint: disable=too-many-public-methods
         assert client.recv(None) == b""
         client.socket.timeout = 0
         assert client.recv(0) == b""
+
+    def test_serial_client_recv_split(self):
+        """Test the serial client receive method."""
+        client = ModbusSerialClient("/dev/null")
+        with pytest.raises(ConnectionException):
+            client.recv(1024)
+        client.socket = mockSocket(copy_send=False)
+        client.socket.mock_prepare_receive(b'')
+        client.socket.mock_prepare_receive(b'\x11\x03\x06\xAE')
+        client.socket.mock_prepare_receive(b'\x41\x56\x52\x43\x40\x49')
+        client.socket.mock_prepare_receive(b'\xAD')
+        reply_ok = client.read_input_registers(0x820, count=3, slave=17)
+        assert not reply_ok.isError()
+        client.close()
+
 
     def test_serial_client_repr(self):
         """Test serial client."""

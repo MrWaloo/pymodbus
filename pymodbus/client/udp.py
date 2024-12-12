@@ -30,7 +30,7 @@ class AsyncModbusUdpClient(ModbusBaseClient):
     :param source_address: source address of client,
     :param reconnect_delay: Minimum delay in seconds.milliseconds before reconnecting.
     :param reconnect_delay_max: Maximum delay in seconds.milliseconds before reconnecting.
-    :param timeout: Timeout for a connection request, in seconds.
+    :param timeout: Timeout for connecting and receiving data, in seconds.
     :param retries: Max number of retries per request.
     :param on_connect_callback: Function that will be called just before a connection attempt.
 
@@ -56,6 +56,7 @@ class AsyncModbusUdpClient(ModbusBaseClient):
     def __init__(  # pylint: disable=too-many-arguments
         self,
         host: str,
+        *,
         framer: FramerType = FramerType.SOCKET,
         port: int = 502,
         name: str = "comm",
@@ -77,6 +78,8 @@ class AsyncModbusUdpClient(ModbusBaseClient):
             reconnect_delay_max=reconnect_delay_max,
             timeout_connect=timeout,
         )
+        if framer not in [FramerType.SOCKET, FramerType.RTU, FramerType.ASCII]:
+            raise TypeError("Only FramerType SOCKET/RTU/ASCII allowed.")
         ModbusBaseClient.__init__(
             self,
             framer,
@@ -101,7 +104,7 @@ class ModbusUdpClient(ModbusBaseSyncClient):
     :param source_address: source address of client,
     :param reconnect_delay: Not used in the sync client
     :param reconnect_delay_max: Not used in the sync client
-    :param timeout: Timeout for a connection request, in seconds.
+    :param timeout: Timeout for connecting and receiving data, in seconds.
     :param retries: Max number of retries per request.
 
     .. tip::
@@ -129,6 +132,7 @@ class ModbusUdpClient(ModbusBaseSyncClient):
     def __init__(
         self,
         host: str,
+        *,
         framer: FramerType = FramerType.SOCKET,
         port: int = 502,
         name: str = "comm",
@@ -139,6 +143,8 @@ class ModbusUdpClient(ModbusBaseSyncClient):
         retries: int = 3,
     ) -> None:
         """Initialize Modbus UDP Client."""
+        if framer not in [FramerType.SOCKET, FramerType.RTU, FramerType.ASCII]:
+            raise TypeError("Only FramerType SOCKET/RTU/ASCII allowed.")
         self.comm_params = CommParams(
             comm_type=CommType.UDP,
             host=host,
@@ -202,7 +208,7 @@ class ModbusUdpClient(ModbusBaseSyncClient):
         if not self.socket:
             raise ConnectionException(str(self))
         if size is None:
-            size = 0
+            size = 4096
         data = self.socket.recvfrom(size)[0]
         self.last_frame_end = round(time.time(), 6)
         return data

@@ -1,17 +1,17 @@
 """Test transaction."""
 from unittest import mock
 
+from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import (
     ModbusIOException,
 )
-from pymodbus.factory import ServerDecoder
 from pymodbus.framer import (
     FramerAscii,
     FramerRTU,
     FramerSocket,
     FramerTLS,
 )
-from pymodbus.pdu import ModbusRequest
+from pymodbus.pdu import DecodePDU, ModbusPDU
 from pymodbus.transaction import (
     ModbusTransactionManager,
     SyncModbusTransactionManager,
@@ -38,70 +38,30 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
     # ----------------------------------------------------------------------- #
     def setup_method(self):
         """Set up the test environment."""
-        self.client = None
-        self.decoder = ServerDecoder()
-        self._tcp = FramerSocket(self.decoder, [])
-        self._tls = FramerTLS(self.decoder, [])
-        self._rtu = FramerRTU(self.decoder, [])
-        self._ascii = FramerAscii(self.decoder, [])
-        self._manager = SyncModbusTransactionManager(self.client, 3)
+        self.decoder = DecodePDU(True)
+        self._tcp = FramerSocket(self.decoder)
+        self._tls = FramerTLS(self.decoder)
+        self._rtu = FramerRTU(self.decoder)
+        self._ascii = FramerAscii(self.decoder)
+        client = mock.MagicMock()
+        client.framer = self._rtu
+        self._manager = SyncModbusTransactionManager(client, 3)
 
     # ----------------------------------------------------------------------- #
     # Modbus transaction manager
     # ----------------------------------------------------------------------- #
 
-    def test_calculate_expected_response_length(self):
-        """Test calculate expected response length."""
-        self._manager.client = mock.MagicMock()
-        self._manager.client.framer = mock.MagicMock()
-        self._manager._set_adu_size()  # pylint: disable=protected-access
-        assert not self._manager._calculate_response_length(  # pylint: disable=protected-access
-            0
-        )
-        self._manager.base_adu_size = 10
-        assert (
-            self._manager._calculate_response_length(5)  # pylint: disable=protected-access
-            == 15
-        )
-
-    def test_calculate_exception_length(self):
-        """Test calculate exception length."""
-        for framer, exception_length in (
-            ("ascii", 11),
-            ("rtu", 5),
-            ("tcp", 9),
-            ("tls", 2),
-            ("dummy", None),
-        ):
-            self._manager.client = mock.MagicMock()
-            if framer == "ascii":
-                self._manager.client.framer = self._ascii
-            elif framer == "rtu":
-                self._manager.client.framer = self._rtu
-            elif framer == "tcp":
-                self._manager.client.framer = self._tcp
-            elif framer == "tls":
-                self._manager.client.framer = self._tls
-            else:
-                self._manager.client.framer = mock.MagicMock()
-
-            self._manager._set_adu_size()  # pylint: disable=protected-access
-            assert (
-                self._manager._calculate_exception_length()  # pylint: disable=protected-access
-                == exception_length
-            )
-
-    @mock.patch.object(SyncModbusTransactionManager, "_recv")
     @mock.patch.object(ModbusTransactionManager, "getTransaction")
-    def test_execute(self, mock_get_transaction, mock_recv):
+    def test_execute(self, mock_get_transaction):
         """Test execute."""
-        client = mock.MagicMock()
+        client = ModbusTcpClient("localhost")
+        client.recv = mock.Mock()
         client.framer = self._ascii
         client.framer._buffer = b"deadbeef"  # pylint: disable=protected-access
-        client.framer.processIncomingPacket = mock.MagicMock()
-        client.framer.processIncomingPacket.return_value = None
-        client.framer.buildPacket = mock.MagicMock()
-        client.framer.buildPacket.return_value = b"deadbeef"
+        client.framer.processIncomingFrame = mock.MagicMock()
+        client.framer.processIncomingFrame.return_value = 0, None
+        client.framer.buildFrame = mock.MagicMock()
+        client.framer.buildFrame.return_value = b"deadbeef"
         client.send = mock.MagicMock()
         client.send.return_value = len(b"deadbeef")
         request = mock.MagicMock()
@@ -109,53 +69,35 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
         request.slave_id = 1
         request.function_code = 222
         trans = SyncModbusTransactionManager(client, 3)
-        mock_recv.reset_mock(
-            return_value=b"abcdef"
-        )
         assert trans.retries == 3
 
+        client.recv.side_effect=iter([b"abcdef", None])
         mock_get_transaction.return_value = b"response"
-        response = trans.execute(request)
-        assert response == b"response"
+        trans.retries = 0
+        response = trans.execute(False, request)
+        assert isinstance(response, ModbusIOException)
         # No response
-        mock_recv.reset_mock(
-            return_value=b"abcdef"
-        )
+        client.recv.side_effect=iter([b"abcdef", None])
         trans.transactions = {}
         mock_get_transaction.return_value = None
-        response = trans.execute(request)
+        response = trans.execute(False, request)
         assert isinstance(response, ModbusIOException)
 
         # No response with retries
-        mock_recv.reset_mock(
-            side_effect=iter([b"", b"abcdef"])
-        )
-        response = trans.execute(request)
+        client.recv.side_effect=iter([b"", b"abcdef"])
+        response = trans.execute(False, request)
         assert isinstance(response, ModbusIOException)
 
         # wrong handle_local_echo
-        mock_recv.reset_mock(
-            side_effect=iter([b"abcdef", b"deadbe", b"123456"])
-        )
+        client.recv.side_effect=iter([b"abcdef", b"deadbe", b"123456"])
         client.comm_params.handle_local_echo = True
-        assert trans.execute(request).message == "[Input/Output] Wrong local echo"
+        assert trans.execute(False, request).message == "[Input/Output] SEND failed"
         client.comm_params.handle_local_echo = False
 
         # retry on invalid response
-        mock_recv.reset_mock(
-            side_effect=iter([b"", b"abcdef", b"deadbe", b"123456"])
-        )
-        response = trans.execute(request)
+        client.recv.side_effect=iter([b"", b"abcdef", b"deadbe", b"123456"])
+        response = trans.execute(False, request)
         assert isinstance(response, ModbusIOException)
-
-        # Unable to decode response
-        mock_recv.reset_mock(
-            side_effect=ModbusIOException()
-        )
-        client.framer.processIncomingPacket.side_effect = mock.MagicMock(
-            side_effect=ModbusIOException()
-        )
-        assert isinstance(trans.execute(request), ModbusIOException)
 
     def test_transaction_manager_tid(self):
         """Test the transaction manager TID."""
@@ -167,9 +109,7 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
     def test_get_transaction_manager_transaction(self):
         """Test the getting a transaction from the transaction manager."""
         self._manager.reset()
-        handle = ModbusRequest(
-            0, self._manager.getNextTID(), False
-        )
+        handle = ModbusPDU(transaction_id=self._manager.getNextTID(), slave_id=0)
         self._manager.addTransaction(handle)
         result = self._manager.getTransaction(handle.transaction_id)
         assert handle is result
@@ -177,422 +117,7 @@ class TestTransaction:  # pylint: disable=too-many-public-methods
     def test_delete_transaction_manager_transaction(self):
         """Test deleting a transaction from the dict transaction manager."""
         self._manager.reset()
-        handle = ModbusRequest(
-            0, self._manager.getNextTID(), False
-        )
+        handle = ModbusPDU(transaction_id=self._manager.getNextTID(), slave_id=0)
         self._manager.addTransaction(handle)
         self._manager.delTransaction(handle.transaction_id)
         assert not self._manager.getTransaction(handle.transaction_id)
-
-    # ----------------------------------------------------------------------- #
-    # TCP tests
-    # ----------------------------------------------------------------------- #
-    def test_tcp_framer_transaction_ready(self):
-        """Test a tcp frame transaction."""
-        count = 0
-        result = None
-        def callback(data):
-            """Simulate callback."""
-            nonlocal count, result
-            count += 1
-            result = data
-
-        msg = b"\x00\x01\x12\x34\x00\x06\xff\x02\x01\x02\x00\x08"
-        self._tcp.processIncomingPacket(msg, callback)
-        self._tcp._buffer = msg  # pylint: disable=protected-access
-        callback(b'')
-
-    def test_tcp_framer_transaction_full(self):
-        """Test a full tcp frame transaction."""
-        count = 0
-        result = None
-        def callback(data):
-            """Simulate callback."""
-            nonlocal count, result
-            count += 1
-            result = data
-
-        msg = b"\x00\x01\x12\x34\x00\x06\xff\x02\x01\x02\x00\x08"
-        self._tcp.processIncomingPacket(msg, callback)
-        assert result.function_code.to_bytes(1,'big') + result.encode() == msg[7:]
-
-    def test_tcp_framer_transaction_half(self):
-        """Test a half completed tcp frame transaction."""
-        count = 0
-        result = None
-        def callback(data):
-            """Simulate callback."""
-            nonlocal count, result
-            count += 1
-            result = data
-
-        msg1 = b"\x00\x01\x12\x34\x00"
-        msg2 = b"\x06\xff\x02\x01\x02\x00\x08"
-        self._tcp.processIncomingPacket(msg1, callback)
-        assert not result
-        self._tcp.processIncomingPacket(msg2, callback)
-        assert result
-        assert result.function_code.to_bytes(1,'big') + result.encode() == msg2[2:]
-
-    def test_tcp_framer_transaction_half2(self):
-        """Test a half completed tcp frame transaction."""
-        count = 0
-        result = None
-        def callback(data):
-            """Simulate callback."""
-            nonlocal count, result
-            count += 1
-            result = data
-
-        msg1 = b"\x00\x01\x12\x34\x00\x06\xff"
-        msg2 = b"\x02\x01\x02\x00\x08"
-        self._tcp.processIncomingPacket(msg1, callback)
-        assert not result
-        self._tcp.processIncomingPacket(msg2, callback)
-        assert result
-        assert result.function_code.to_bytes(1,'big') + result.encode() == msg2
-
-    def test_tcp_framer_transaction_half3(self):
-        """Test a half completed tcp frame transaction."""
-        count = 0
-        result = None
-        def callback(data):
-            """Simulate callback."""
-            nonlocal count, result
-            count += 1
-            result = data
-
-        msg1 = b"\x00\x01\x12\x34\x00\x06\xff\x02\x01\x02\x00"
-        msg2 = b"\x08"
-        self._tcp.processIncomingPacket(msg1, callback)
-        assert not result
-        self._tcp.processIncomingPacket(msg2, callback)
-        assert result
-        assert result.function_code.to_bytes(1,'big') + result.encode() == msg1[7:] + msg2
-
-    def test_tcp_framer_transaction_short(self):
-        """Test that we can get back on track after an invalid message."""
-        count = 0
-        result = None
-        def callback(data):
-            """Simulate callback."""
-            nonlocal count, result
-            count += 1
-            result = data
-
-        # msg1 = b"\x99\x99\x99\x99\x00\x01\x00\x17"
-        msg1 = b''
-        msg2 = b"\x00\x01\x12\x34\x00\x06\xff\x02\x01\x02\x00\x08"
-        self._tcp.processIncomingPacket(msg1, callback)
-        assert not result
-        self._tcp.processIncomingPacket(msg2, callback)
-        assert result
-        assert result.function_code.to_bytes(1,'big') + result.encode() == msg2[7:]
-
-    def test_tcp_framer_populate(self):
-        """Test a tcp frame packet build."""
-        count = 0
-        result = None
-        def callback(data):
-            """Simulate callback."""
-            nonlocal count, result
-            count += 1
-            result = data
-
-        expected = ModbusRequest(0, 0, False)
-        expected.transaction_id = 0x0001
-        expected.slave_id = 0xFF
-        msg = b"\x00\x01\x12\x34\x00\x06\xff\x02\x12\x34\x01\x02"
-        self._tcp.processIncomingPacket(msg, callback)
-
-    @mock.patch.object(ModbusRequest, "encode")
-    def test_tcp_framer_packet(self, mock_encode):
-        """Test a tcp frame packet build."""
-        message = ModbusRequest(0, 0, False)
-        message.transaction_id = 0x0001
-        message.slave_id = 0xFF
-        message.function_code = 0x01
-        expected = b"\x00\x01\x00\x00\x00\x02\xff\x01"
-        mock_encode.return_value = b""
-        actual = self._tcp.buildPacket(message)
-        assert expected == actual
-
-    # ----------------------------------------------------------------------- #
-    # TLS tests
-    # ----------------------------------------------------------------------- #
-    def test_framer_tls_framer_transaction_ready(self):
-        """Test a tls frame transaction."""
-        count = 0
-        result = None
-        def callback(data):
-            """Simulate callback."""
-            nonlocal count, result
-            count += 1
-            result = data
-
-        msg = b"\x00\x01\x12\x34\x00\x06\xff\x02\x12\x34\x01\x02"
-        self._tcp.processIncomingPacket(msg[0:4], callback)
-        assert not result
-        self._tcp.processIncomingPacket(msg[4:], callback)
-        assert result
-
-    def test_framer_tls_framer_transaction_full(self):
-        """Test a full tls frame transaction."""
-        count = 0
-        result = None
-        def callback(data):
-            """Simulate callback."""
-            nonlocal count, result
-            count += 1
-            result = data
-
-        msg = b"\x00\x01\x12\x34\x00\x06\xff\x02\x12\x34\x01\x02"
-        self._tcp.processIncomingPacket(msg, callback)
-        assert result
-
-    def test_framer_tls_framer_transaction_half(self):
-        """Test a half completed tls frame transaction."""
-        count = 0
-        result = None
-        def callback(data):
-            """Simulate callback."""
-            nonlocal count, result
-            count += 1
-            result = data
-
-        msg = b"\x00\x01\x12\x34\x00\x06\xff\x02\x12\x34\x01\x02"
-        self._tcp.processIncomingPacket(msg[0:8], callback)
-        assert not result
-        self._tcp.processIncomingPacket(msg[8:], callback)
-        assert result
-
-    def test_framer_tls_framer_transaction_short(self):
-        """Test that we can get back on track after an invalid message."""
-        count = 0
-        result = None
-        def callback(data):
-            """Simulate callback."""
-            nonlocal count, result
-            count += 1
-            result = data
-
-        msg = b"\x00\x01\x12\x34\x00\x06\xff\x02\x12\x34\x01\x02"
-        self._tcp.processIncomingPacket(msg[0:2], callback)
-        assert not result
-        self._tcp.processIncomingPacket(msg[2:], callback)
-        assert result
-
-    def test_framer_tls_incoming_packet(self):
-        """Framer tls incoming packet."""
-        msg = b"\x00\x01\x12\x34\x00\x06\xff\x02\x12\x34\x01\x02"
-        msg_result = None
-
-        def mock_callback(result):
-            """Mock callback."""
-            nonlocal msg_result
-
-            msg_result = result.encode()
-
-        self._tls.processIncomingPacket(msg, mock_callback)
-        # assert msg == msg_result
-
-    def test_framer_tls_framer_populate(self):
-        """Test a tls frame packet build."""
-        count = 0
-        result = None
-        def callback(data):
-            """Simulate callback."""
-            nonlocal count, result
-            count += 1
-            result = data
-
-        msg = b"\x00\x01\x12\x34\x00\x06\xff\x02\x12\x34\x01\x02"
-        self._tcp.processIncomingPacket(msg, callback)
-        assert result
-
-    @mock.patch.object(ModbusRequest, "encode")
-    def test_framer_tls_framer_packet(self, mock_encode):
-        """Test a tls frame packet build."""
-        message = ModbusRequest(0, 0, False)
-        message.function_code = 0x01
-        expected = b"\x01"
-        mock_encode.return_value = b""
-        actual = self._tls.buildPacket(message)
-        assert expected == actual
-
-    # ----------------------------------------------------------------------- #
-    # RTU tests
-    # ----------------------------------------------------------------------- #
-    def test_rtu_framer_transaction_ready(self):
-        """Test if the checks for a complete frame work."""
-        count = 0
-        result = None
-        def callback(data):
-            """Simulate callback."""
-            nonlocal count, result
-            count += 1
-            result = data
-
-        msg_parts = [b"\x00\x01\x00", b"\x00\x00\x01\xfc\x1b"]
-        self._rtu.processIncomingPacket(msg_parts[0], callback)
-        assert not result
-        self._rtu.processIncomingPacket(msg_parts[1], callback)
-        assert result
-
-    def test_rtu_framer_transaction_full(self):
-        """Test a full rtu frame transaction."""
-        count = 0
-        result = None
-        def callback(data):
-            """Simulate callback."""
-            nonlocal count, result
-            count += 1
-            result = data
-
-        msg = b"\x00\x01\x00\x00\x00\x01\xfc\x1b"
-        self._rtu.processIncomingPacket(msg, callback)
-        assert result
-
-    def test_rtu_framer_transaction_half(self):
-        """Test a half completed rtu frame transaction."""
-        count = 0
-        result = None
-        def callback(data):
-            """Simulate callback."""
-            nonlocal count, result
-            count += 1
-            result = data
-
-        msg_parts = [b"\x00\x01\x00", b"\x00\x00\x01\xfc\x1b"]
-        self._rtu.processIncomingPacket(msg_parts[0], callback)
-        assert not result
-        self._rtu.processIncomingPacket(msg_parts[1], callback)
-        assert result
-
-    def test_rtu_framer_populate(self):
-        """Test a rtu frame packet build."""
-        count = 0
-        result = None
-        def callback(data):
-            """Simulate callback."""
-            nonlocal count, result
-            count += 1
-            result = data
-
-        msg = b"\x00\x01\x00\x00\x00\x01\xfc\x1b"
-        self._rtu.processIncomingPacket(msg, callback)
-        assert int(msg[0]) == self._rtu.incoming_dev_id
-
-    @mock.patch.object(ModbusRequest, "encode")
-    def test_rtu_framer_packet(self, mock_encode):
-        """Test a rtu frame packet build."""
-        message = ModbusRequest(0, 0, False)
-        message.slave_id = 0xFF
-        message.function_code = 0x01
-        expected = b"\xff\x01\x81\x80"  # only header + CRC - no data
-        mock_encode.return_value = b""
-        actual = self._rtu.buildPacket(message)
-        assert expected == actual
-
-    def test_rtu_decode_exception(self):
-        """Test that the RTU framer can decode errors."""
-        count = 0
-        result = None
-        def callback(data):
-            """Simulate callback."""
-            nonlocal count, result
-            count += 1
-            result = data
-
-        msg = b"\x00\x90\x02\x9c\x01"
-        self._rtu.processIncomingPacket(msg, callback)
-        assert result
-
-    def test_process(self):
-        """Test process."""
-        count = 0
-        result = None
-        def callback(data):
-            """Simulate callback."""
-            nonlocal count, result
-            count += 1
-            result = data
-
-        msg = b"\x00\x01\x00\x00\x00\x01\xfc\x1b"
-        self._rtu.processIncomingPacket(msg, callback)
-        assert result
-
-    def test_rtu_process_incoming_packets(self):
-        """Test rtu process incoming packets."""
-        count = 0
-        result = None
-        def callback(data):
-            """Simulate callback."""
-            nonlocal count, result
-            count += 1
-            result = data
-
-        msg = b"\x00\x01\x00\x00\x00\x01\xfc\x1b"
-        self._rtu.processIncomingPacket(msg, callback)
-        assert result
-
-    # ----------------------------------------------------------------------- #
-    # ASCII tests
-    # ----------------------------------------------------------------------- #
-    def test_ascii_framer_transaction_ready(self):
-        """Test a ascii frame transaction."""
-        count = 0
-        result = None
-        def callback(data):
-            """Simulate callback."""
-            nonlocal count, result
-            count += 1
-            result = data
-
-        msg = b":F7031389000A60\r\n"
-        self._ascii.processIncomingPacket(msg, callback)
-        assert result
-
-    def test_ascii_framer_transaction_full(self):
-        """Test a full ascii frame transaction."""
-        count = 0
-        result = None
-        def callback(data):
-            """Simulate callback."""
-            nonlocal count, result
-            count += 1
-            result = data
-
-        msg = b"sss:F7031389000A60\r\n"
-        self._ascii.processIncomingPacket(msg, callback)
-        assert result
-
-    def test_ascii_framer_transaction_half(self):
-        """Test a half completed ascii frame transaction."""
-        count = 0
-        result = None
-        def callback(data):
-            """Simulate callback."""
-            nonlocal count, result
-            count += 1
-            result = data
-
-        msg_parts = (b"sss:F7031389", b"000A60\r\n")
-        self._ascii.processIncomingPacket(msg_parts[0], callback)
-        assert not result
-        self._ascii.processIncomingPacket(msg_parts[1], callback)
-        assert result
-
-    def test_ascii_process_incoming_packets(self):
-        """Test ascii process incoming packet."""
-        count = 0
-        result = None
-        def callback(data):
-            """Simulate callback."""
-            nonlocal count, result
-            count += 1
-            result = data
-
-        msg = b":F7031389000A60\r\n"
-        self._ascii.processIncomingPacket(msg, callback)
-        assert result
