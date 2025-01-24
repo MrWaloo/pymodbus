@@ -7,6 +7,30 @@ helps make pymodbus a better product.
 
 :ref:`Authors`: contains a complete list of volunteers have contributed to each major version.
 
+Version 3.8.3
+-------------
+* Remove deprecate from payload. (#2532)
+* Add background parameter to servers. (#2529)
+* Split async_io.py and simplify server start/stop. (#2528)
+* Update custom_msg example to include server. (#2527)
+* Move repl doc to repl repo. (#2522)
+* Add API to set max until disconnect. (#2521)
+
+Version 3.8.2
+-------------
+* Asyncio future removed from sync client. (#2514)
+
+Version 3.8.1
+-------------
+* Convert endianness (#2506)
+* Fix sync serial client, loop. (#2510)
+* Correct future. (#2507)
+* Correct #2501 (#2504)
+* Raise exception on no response in async client. (#2502)
+* re-instatiate Future on reconnect (#2501)
+* Remove all trailing zeroes during string decoding (#2493)
+* Fix too many sync client log messages. (#2491)
+
 Version 3.8.0
 -------------
 * slave_id -> dev_id (internally). (#2486)
@@ -16,7 +40,7 @@ Version 3.8.0
 * Add trace API to server. (#2479)
 * Add trace API for client. (#2478)
 * Integrate TransactionManager in server. (#2475)
-* Rename test/sub_. (#2473)
+* Rename test/sub. (#2473)
 * Check server closes file descriptors. (#2472)
 * Update http_server.py (#2471)
 * Restrict write_registers etc to list[int]. (#2469)

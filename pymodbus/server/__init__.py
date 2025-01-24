@@ -1,7 +1,4 @@
-"""Server.
-
-import external classes, to make them easier to use:
-"""
+"""**Server classes**."""
 
 __all__ = [
     "ModbusSerialServer",
@@ -22,11 +19,15 @@ __all__ = [
     "get_simulator_commandline",
 ]
 
-from pymodbus.server.async_io import (
+from pymodbus.server.server import (
     ModbusSerialServer,
     ModbusTcpServer,
     ModbusTlsServer,
     ModbusUdpServer,
+)
+from pymodbus.server.simulator.http_server import ModbusSimulatorServer
+from pymodbus.server.simulator.main import get_commandline as get_simulator_commandline
+from pymodbus.server.startstop import (
     ServerAsyncStop,
     ServerStop,
     StartAsyncSerialServer,
@@ -38,5 +39,3 @@ from pymodbus.server.async_io import (
     StartTlsServer,
     StartUdpServer,
 )
-from pymodbus.server.simulator.http_server import ModbusSimulatorServer
-from pymodbus.server.simulator.main import get_commandline as get_simulator_commandline

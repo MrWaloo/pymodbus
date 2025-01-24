@@ -15,8 +15,15 @@ import struct
 
 from pymodbus import FramerType
 from pymodbus.client import AsyncModbusTcpClient as ModbusClient
-from pymodbus.pdu import ExceptionResponse, ModbusPDU
+from pymodbus.datastore import (
+    ModbusSequentialDataBlock,
+    ModbusServerContext,
+    ModbusSlaveContext,
+)
+from pymodbus.exceptions import ModbusIOException
+from pymodbus.pdu import ModbusPDU
 from pymodbus.pdu.bit_message import ReadCoilsRequest
+from pymodbus.server import ServerAsyncStop, StartAsyncTcpServer
 
 
 # --------------------------------------------------------------------------- #
@@ -30,7 +37,7 @@ from pymodbus.pdu.bit_message import ReadCoilsRequest
 # --------------------------------------------------------------------------- #
 
 
-class CustomModbusPDU(ModbusPDU):
+class CustomModbusResponse(ModbusPDU):
     """Custom modbus response."""
 
     function_code = 55
@@ -72,7 +79,7 @@ class CustomRequest(ModbusPDU):
         """Initialize."""
         super().__init__(dev_id=slave, transaction_id=transaction)
         self.address = address
-        self.count = 16
+        self.count = 2
 
     def encode(self):
         """Encode."""
@@ -82,14 +89,10 @@ class CustomRequest(ModbusPDU):
         """Decode."""
         self.address, self.count = struct.unpack(">HH", data)
 
-    def execute(self, context):
+    async def update_datastore(self, context: ModbusSlaveContext) -> ModbusPDU:
         """Execute."""
-        if not 1 <= self.count <= 0x7D0:
-            return ExceptionResponse(self.function_code, ExceptionResponse.ILLEGAL_VALUE)
-        if not context.validate(self.function_code, self.address, self.count):
-            return ExceptionResponse(self.function_code, ExceptionResponse.ILLEGAL_ADDRESS)
-        values = context.getValues(self.function_code, self.address, self.count)
-        return CustomModbusPDU(values)
+        _ = context
+        return CustomModbusResponse()
 
 
 # --------------------------------------------------------------------------- #
@@ -118,23 +121,41 @@ class Read16CoilsRequest(ReadCoilsRequest):
 
 async def main(host="localhost", port=5020):
     """Run versions of read coil."""
+    store = ModbusServerContext(slaves=ModbusSlaveContext(
+            di=ModbusSequentialDataBlock(0, [17] * 100),
+            co=ModbusSequentialDataBlock(0, [17] * 100),
+            hr=ModbusSequentialDataBlock(0, [17] * 100),
+            ir=ModbusSequentialDataBlock(0, [17] * 100),
+        ),
+        single=True
+    )
+    task = asyncio.create_task(StartAsyncTcpServer(
+        context=store,
+        address=(host, port),
+        custom_functions=[CustomRequest])
+    )
+    await asyncio.sleep(0.1)
     async with ModbusClient(host=host, port=port, framer=FramerType.SOCKET) as client:
         await client.connect()
 
-        # create a response object to control it works
-        CustomModbusPDU()
-
-        # new modbus function code.
-        client.register(CustomModbusPDU)
+        # add new modbus function code.
+        client.register(CustomModbusResponse)
         slave=1
         request1 = CustomRequest(32, slave=slave)
-        result = await client.execute(False, request1)
-        print(result)
+        try:
+            result = await client.execute(False, request1)
+        except ModbusIOException:
+            print("Server do not support CustomRequest.")
+        else:
+            print(result)
 
         # inherited request
         request2 = Read16CoilsRequest(32, slave)
         result = await client.execute(False, request2)
         print(result)
+    await ServerAsyncStop()
+    task.cancel()
+    await task
 
 
 if __name__ == "__main__":
