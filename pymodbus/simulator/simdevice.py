@@ -18,7 +18,7 @@ class SimDevice:
 
     Registers are always defined as one block.
 
-    Some old devices uses 4 distinct blocks instead of 1 block, to
+    Some old devices use 4 distinct blocks instead of 1 block, to
     support these devices, define 1 large block consisting of the
     4 blocks and use the offset_address= parameter.
 

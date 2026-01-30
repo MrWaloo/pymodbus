@@ -1,6 +1,6 @@
 Data model configuration
 ------------------------
-The simulator data model represent the registers and parameters of the simulated devices.
+The simulator data model represents the registers and parameters of the simulated devices.
 The data model is defined using :class:`SimData` and :class:`SimDevice` before starting the
 server and cannot be changed without restarting the server.
 

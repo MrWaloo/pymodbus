@@ -16,18 +16,18 @@ Pymodbus is a full Modbus protocol implementation offering a client and server w
 
 Our releases follow the pattern `X.Y.Z`. We have strict rules for what different version number updates mean:
 
-- **Z**, No API changes! bug fixes and smaller enhancements.
+- **Z**, No API changes! Bug fixes and smaller enhancements.
 - **Y**, API changes, bug fixes and bigger enhancements.
 - **X**, Major changes in API and/or method to use pymodbus
 
 Upgrade examples:
 
 - 3.9.0 -> 3.9.2: just plugin the new version, no changes needed.
-                  Remark fixing bugs, can lead to a different behaviors/returns
+                  Remark fixing bugs, can lead to different behaviors/returns
 - 3.8.0 -> 3.9.0: Smaller changes to the pymodbus calls might be needed
 - 2.5.4 -> 3.0.0: Major changes in the application might be needed
 
-**REMARK**: As can be seen from the above Pymodbus do NOT follow the semver.org standard.
+**REMARK**: As can be seen from the above Pymodbus does NOT follow the semver.org standard.
 
 It is always recommended to read the
 `CHANGELOG <https://github.com/pymodbus-dev/pymodbus/blob/dev/CHANGELOG.rst>`_
@@ -42,7 +42,7 @@ Bleeding edge (not released) is `dev <https://github.com/pymodbus-dev/pymodbus/t
 All changes are described in `release notes <https://pymodbus.readthedocs.io/en/latest/source/changelog.html>`_
 and all API changes are `documented <https://pymodbus.readthedocs.io/en/latest/source/api_changes.html>`_
 
-A big thanks to all the `volunteers <https://pymodbus.readthedocs.io/en/latest/source/authors.html>`_ that helps make pymodbus a great project.
+A big thanks to all the `volunteers <https://pymodbus.readthedocs.io/en/latest/source/authors.html>`_ that help make pymodbus a great project.
 
 Source code on `github <https://github.com/pymodbus-dev/pymodbus>`_
 
@@ -50,23 +50,23 @@ Full documentation for newest releases as well as the bleeding edge (dev) `readt
 
 Pymodbus in a nutshell
 ----------------------
-Pymodbus consist of 5 parts:
+Pymodbus consists of 5 parts:
 
-- **client**, connect to your favorite device(s)
-- **server**, simulate your favorite device(s)
-- **simulator**, an html based server simulator
-- **examples**, showing both simple and advances usage
+- **client**, connects to your favorite device(s)
+- **server**, simulates your favorite device(s)
+- **simulator**, an HTML-based server simulator
+- **examples**, showing both simple and advanced usages
 
 Common features
 ^^^^^^^^^^^^^^^
 * Full modbus standard protocol implementation
 * Support for custom function codes
-* Support serial (rs-485), tcp, tls and udp communication
-* Support all standard frames: socket, rtu, rtu-over-tcp, tcp and ascii
+* Support for serial (rs-485), tcp, tls and udp communication
+* Support for all standard frames: socket, rtu, rtu-over-tcp, tcp and ascii
 * Does not have third party dependencies, apart from pyserial (optional)
 * Very lightweight project
 * Requires Python >= 3.10
-* Thorough test suite, that test all corners of the library
+* Thorough test suite, that tests all corners of the library
 * Automatically tested on Windows, Linux and MacOS combined with python 3.10 - 3.14
 * Strongly typed API (py.typed present)
 
@@ -111,14 +111,14 @@ Simulator Features
 Use Cases
 ---------
 The client is the most typically used. It is embedded into applications,
-where it abstract the modbus protocol from the application by providing an
+where it abstracts the modbus protocol from the application by providing an
 easy to use API. The client is integrated into some well known projects like
 `home-assistant <https://www.home-assistant.io>`_.
 
 Although most system administrators will find little need for a Modbus
 server, the server is handy to verify the functionality of an application.
 
-The simulator and/or server is often used to simulate real life devices testing
+The simulator and/or server is often used to simulate real life devices for testing
 applications. The server is excellent to perform high volume testing (e.g.
 hundreds of devices connected to the application). The advantage of the server is
 that it runs not only on "normal" computers but also on small ones like a Raspberry PI.
@@ -137,27 +137,27 @@ Install
 The library is available on pypi.org and github.com to install with
 
 - :code:`pip` for those who just want to use the library
-- :code:`git clone` for those who wants to help or just are curious
+- :code:`git clone` for those who want to help or just are curious
 
-Be aware that there are a number of project, who have forked pymodbus and
+Be aware that there are a number of projects, who have forked pymodbus and
 
-- Seems just to provide a version frozen in time
+- Seem just to provide a version frozen in time
 - Extended pymodbus with extra functionality
 
 The latter is not because we rejected the extra functionality (we welcome all changes),
 but because the codeowners made that decision.
 
-In both cases, please understand, we cannot offer support to users of these projects as we do not known
-what have been changed nor what status the forked code have.
+In both cases, please understand, we cannot offer support to users of these projects as we do not know
+what has been changed nor what status the forked code have.
 
 A growing number of Linux distributions include pymodbus in their standard installation.
 
-You need to have python3 installed, preferable 3.11.
+You need to have python3 installed, preferably 3.11.
 
 Install with pip
 ^^^^^^^^^^^^^^^^
 .. note::
-   This section is intended for apps that uses the pymodbus library.
+   This section is intended for apps that use the pymodbus library.
 
 You can install using pip by issuing the following
 commands in a terminal window::
@@ -198,7 +198,7 @@ Clone the source, and make a virtual environment::
    cd pymodbus
    python3 -m venv .venv
 
-Activate the virtual environment, this command needs repeated in every new terminal::
+Activate the virtual environment, this command needs to be repeated in every new terminal::
 
    source .venv/bin/activate
 
@@ -228,13 +228,13 @@ Install all (allows creation of documentation etc) in editable mode::
    source directory. This ensures that any changes you make to the core library are 
    immediately reflected when running examples or tests.
 
-Install git hooks, that helps control the commit and avoid errors when submitting a Pull Request::
+Install git hooks, that help control the commit and avoid errors when submitting a Pull Request::
    cp githooks/* .git/hooks
 
 
 The repository contains a number of important branches and tags.
-  * **dev** is where all development happens, this branch is not always stable.
-  * **master** is where are releases are kept.
+  * **dev** is where all developments happen, this branch is not always stable.
+  * **master** is where our releases are kept.
   * **vX.Y.Z** (e.g. v2.5.3) is a specific release
 
 
@@ -347,11 +347,11 @@ methods are documented:
 Generate documentation
 ^^^^^^^^^^^^^^^^^^^^^^
 
-**Remark** Assumes that you have installed documentation tools:;
+**Remark**: Assumes that you have installed documentation tools::
 
    pip install ".[documentation]"
 
-to build do::
+To build do::
 
    cd doc
    ./build_html
