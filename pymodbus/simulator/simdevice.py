@@ -20,7 +20,7 @@ class SimDevice:
 
     Some old devices uses 4 distinct blocks instead of 1 block, to
     support these devices, define 1 large block consisting of the
-    4 blocks and use the offset_*= parameters.
+    4 blocks and use the offset_address= parameter.
 
     When using distinct blocks, coils and discrete inputs are addressed differently,
     each register represent 1 coil/relay.
@@ -37,11 +37,7 @@ class SimDevice:
         SimDevice(
             id=1,
             registers=[SimData(...)],
-            non_shared_mode=True,
-            offset_coil=0,
-            offset_discrete=10,
-            offset_holding=20,
-            offset_input=30,
+            offset_address=(0, 10, 20, 30),
         )
 
     Meaning registers:
@@ -51,7 +47,7 @@ class SimDevice:
         - 20-29 are holding registers
         - 30-.. are input registers
 
-    A server can contain either a single :class:`SimDevice` or list of :class:`SimDevice`
+    A server can contain either a single :class:`SimDevice` or a list of :class:`SimDevice`
     to simulate a multipoint line.
 
     .. warning:: each block is sorted by address !!
@@ -88,7 +84,7 @@ class SimDevice:
     #: Byte order is defined in the modbus standard to be big-endian,
     #: however it is definable to test non-standard modbus devices
     #:
-    #: ..tip:: Content (word_order, byte_order)
+    #: ..tip:: Content (word_order, byte_order), True means big-endian
     endian: tuple[bool, bool] = (True, True)
 
     #: Set device identity
@@ -110,17 +106,17 @@ class SimDevice:
         if self.default and block:
             first_address = block[0].address
             if self.default.address > first_address:
-                raise TypeError("Default address is {self.default.address} but {first_address} is defined?")
+                raise TypeError(f"Default address is {self.default.address} but {first_address} is defined?")
             def_last_address = self.default.address + self.default.count -1
             if last_address > def_last_address:
-                raise TypeError("Default address+count is {def_last_address} but {last_address} is defined?")
+                raise TypeError(f"Default address+count is {def_last_address} but {last_address} is defined?")
         return block
 
     def __check_block_entries(self, last_address: int, entry: SimData) -> int:
         """Check block entries."""
         values = entry.values if isinstance(entry.values, list) else [entry.values]
         if entry.address <= last_address:
-            raise TypeError("SimData address {entry.address} is overlapping!")
+            raise TypeError(f"SimData address {entry.address} is overlapping!")
         if entry.datatype == DataType.BITS:
             if isinstance(values[0], bool):
                 reg_count = int((len(values) + 15) / 16)
