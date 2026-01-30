@@ -3,10 +3,10 @@ Examples
 
 Examples are divided in 2 parts:
 
-The first part are some simple client examples which can be copied and run directly.
+The first part contains some simple client examples which can be copied and run directly.
 These examples show the basic functionality of the library.
 
-The second part are more advanced examples, but in order to not duplicate code,
+The second part contains more advanced examples, but in order not to duplicate code,
 this requires you to download the examples directory and run
 the examples in the directory.
 

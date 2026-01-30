@@ -1,6 +1,6 @@
 Client
 ======
-Pymodbus offers both a :mod:`synchronous client` and a :mod:`asynchronous client`.
+Pymodbus offers both a :mod:`synchronous client` and an :mod:`asynchronous client`.
 Both clients offer simple calls for each type of request, as well as a unified response, removing
 a lot of the complexities in the modbus protocol.
 
@@ -85,7 +85,7 @@ Pymodbus offers clients with transport different protocols and different framers
 
 Serial (RS-485)
 ^^^^^^^^^^^^^^^
-Pymodbus do not connect to the device (server) but connects to a comm port or usb port on the local computer.
+Pymodbus does not connect to the device (server) but connects to a comm port or usb port on the local computer.
 
 RS-485 is a half duplex protocol, meaning the servers do nothing until the client sends a request then the server
 being addressed responds. The client controls the traffic and as a consequence one RS-485 line can only have 1 client
@@ -97,10 +97,10 @@ builtin resistor, this must be added manually. When experiencing many faulty pac
 
 TCP
 ^^^
-Pymodbus connects directly to the device using a standard socket and have a one-to-one connection with the device.
-In case of multiple TCP devices the application must instantiate multiple client objects one for each connection.
+Pymodbus connects directly to the device using a standard socket and has a one-to-one connection with the device.
+In case of multiple TCP devices the application must instantiate multiple client objects; one for each connection.
 
-.. tip:: a TCP device often represent multiple physical devices (e.g Ethernet-RS485 converter), each of these devices
+.. tip:: a TCP device often represents multiple physical devices (e.g Ethernet-RS485 converter), each of these devices
     can be addressed normally
 
 
@@ -112,7 +112,7 @@ A variant of **TCP** that uses encryption and certificates. **TLS** is mostly us
 UDP
 ^^^
 A broadcast variant of **TCP**. **UDP** allows addressing of many devices with a single request, however there are no control
-that a device have received the packet.
+that a device has received the packet.
 
 
 Client usage
@@ -164,7 +164,7 @@ The line :mod:`await client.write_coil(1, [True], device_id=1)` is an example of
 
 The line :mod:`result = await client.read_coils(2, count=3, device_id=1)` is an example of a read request, get the value of address 2, 3 and 4 (count = 3) from device 1.
 
-The last line :mod:`client.close()` closes the connection and render the object inactive.
+The last line :mod:`client.close()` closes the connection and renders the object inactive.
 
 Retry logic for async clients
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -212,7 +212,7 @@ in the normal API calls, this will cause the call to return immediately with :mo
 Client response handling
 ------------------------
 
-All simple request calls (mixin) return a unified result independent whether it´s a read, write or diagnostic call.
+All simple request calls (mixin) return a unified result independent whether it's a read, write or diagnostic call.
 
 The application should evaluate the result generically::
 
@@ -226,7 +226,7 @@ The application should evaluate the result generically::
         raise ModbusException(txt)
 
 :mod:`except ModbusException as exc:` happens generally when pymodbus experiences an internal error.
-There are a few situation where an unexpected response from a device can cause an exception.
+There are a few situations where an unexpected response from a device can cause an exception.
 
 :mod:`rr.isError()` is set whenever the device reports a problem.
 

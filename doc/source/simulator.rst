@@ -12,10 +12,10 @@ modbus devices.
 The simulator allows the user to (all automated):
 
 - simulate a modbus device by adding a simple configuration,
-- simulate a multipoint line, but adding multiple device configurations,
+- simulate a multipoint line, by adding multiple device configurations,
 - simulate devices that are not conforming to the protocol,
 - simulate communication problems (data loss etc),
-- test how a client handles modbus response and exceptions,
+- test how a client handles modbus responses and exceptions,
 - test a client apps correct use of the simulated device.
 
 For details please see:
@@ -28,7 +28,7 @@ The web interface (activated optionally) allows the user to:
 - introduce modbus errors (like e.g. wrong length),
 - introduce communication errors (like splitting a message),
 - monitor requests/responses,
-- see/Change values online.
+- see/change values online.
 - inject modbus errors like malicious a response,
 - run your test server in the cloud,
 
@@ -37,7 +37,7 @@ For details please see:
 - :ref:`Web frontend`
 
 
-The REST API allow the test process to be automated
+The REST API allows the test process to be automated
 
 - spin up a test server in your test harness,
 - set expected responses with a simple REST API command,
