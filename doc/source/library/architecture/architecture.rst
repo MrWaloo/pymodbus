@@ -17,7 +17,7 @@ The overall architecture can be viewed as:
     framers (add pre/post headers to make a valid package)
     transport (handles actual transportation)
 
-In detail the packages can viewed as:
+In detail the packages can be viewed as:
 
 .. image:: packages.png
 

@@ -27,7 +27,7 @@ The web interface (activated optionally) allows the user to:
 - inject modbus errors like malicious a response,
 - run your test server in the cloud,
 
-The REST API allow the test process to be automated
+The REST API allows the test process to be automated
 
 - spin up a test server in your test harness,
 - set expected responses with a simple REST API command,

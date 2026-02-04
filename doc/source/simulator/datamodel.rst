@@ -12,7 +12,7 @@ list of :class:`SimData` can be added as shared registers or as 4 separate block
 :class:`SimDevice` are used to simulate a single device, while a list of
 :class:`SimDevice` simulates a multipoint line (rs485 line) or a serial forwarder.
 
-A server consist of communication parameters and a list of :class:`SimDevice`
+A server consists of communication parameters and a list of :class:`SimDevice`
 
 
 Usage examples

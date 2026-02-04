@@ -8,7 +8,7 @@ device part of the json file).
 Json file layout
 ----------------
 
-The json file consist of 2 main entries "server_list" (see :ref:`Server entries`) and "device_list" (see :ref:`Device entries`)
+The json file consists of 2 main entries "server_list" (see :ref:`Server entries`) and "device_list" (see :ref:`Device entries`)
 each containing a list of servers/devices
 
 .. code-block::
@@ -24,11 +24,11 @@ each containing a list of servers/devices
         }
     }
 
-You can define as many server and devices as you like, when starting
+You can define as many servers and devices as you like, when starting
 :ref:`pymodbus.simulator (v3.x)` you select one server and one device to simulate.
 
-A entry in “device_list” correspond to the dict you can use as parameter
-to datastore_simulator is you want to construct your own simulator.
+An entry in “device_list” corresponds to the dict you can use as parameter
+to datastore_simulator if you want to construct your own simulator.
 
 
 Server entries
@@ -69,7 +69,7 @@ The entry “framer” allows the following values:
 - “tls” to use :class:`pymodbus.framer.FramerTLS`,
 
 Optional entry "device_id" will limit server to only accept a single id. If
-not set, the server will accept all device id.
+not set, the server will accept all device ids.
 
 .. warning::
 
@@ -196,7 +196,7 @@ Each block references a different physical register memory, in other words the s
 
 The second form uses 1 shared block, most modern devices use this form for 2 main reasons:
 
-- the modbus protocol implementation do not connect directly to the sensors but to a shared memory controlled by a small microprocessor.
+- the modbus protocol implementation does not connect directly to the sensors but to a shared memory controlled by a small microprocessor.
 - designers can group related information independent of type (e.g. a bay controller with register 1 as coil, register 2 as input and register 3 as holding)
 
 .. image:: modbuscommonblock.png
@@ -264,14 +264,14 @@ Example "setup" configuration:
 
 **"type exception"**
 
-    Defines is the server returns a modbus exception if a read/write request violates the specified type.
+    Defines if the server returns a modbus exception if a read/write request violates the specified type.
     E.g. Read holding register 10 with count 1, but the 10,11 are defined as UINT32 and thus can only be read with multiples of 2.
 
-    This feature is designed to control that a client access the device in the manner it was designed.
+    This feature is designed to control that a client accesses the device in the manner it was designed.
 
 **"defaults"**
 
-    Defines how to defines registers not configured or or only partial configured.
+    Defines how to define registers not configured or only partially configured.
 
     **"value"** defines the default value for each type.
 
@@ -284,9 +284,9 @@ The datastore simulator have a number of builtin actions, and allows custom acti
 - **"increment"**, increment the value by 1 with every access,
 - **"timestamp"**, uses 6 registers and build a timestamp,
 - **"reset"**, causes a reboot of the simulator,
-- **"uptime"**, sets the number of seconds the server have been running.
+- **"uptime"**, sets the number of seconds the server has been running.
 
-The **"random"** and **"increment"** actions may optionally minimum and/or maximum.
+The **"random"** and **"increment"** actions may optionally have minimum and/or maximum values.
 In case of **"increment"**, the counter is reset to the minimum value, if the maximum is crossed.
 
 .. code-block::
@@ -346,10 +346,10 @@ Example "bits" configuration:
         {"addr": [11, 12], "value": 7, "action": "random"}
     ],
 
-defines registers which contain bits (discrete input and coils),
+defines registers which contains bits (discrete input and coils),
 
 Registers can be singulars (first entry) or arrays (second entry),
-furthermore a value and/or a action can be defined,
+furthermore a value and/or an action can be defined,
 the value and/or action is inserted into each register defined in "addr".
 
 
@@ -372,7 +372,7 @@ Example "uint16" configuration:
 defines registers which contain a 16 bit unsigned integer,
 
 Registers can be singulars (first entry) or arrays (second entry),
-furthermore a value and/or a action can be defined,
+furthermore a value and/or an action can be defined,
 the value and/or action is inserted into each register defined in "addr".
 
 
@@ -394,7 +394,7 @@ Example "uint32" configuration:
 defines sets of registers (2) which contain a 32 bit unsigned integer,
 
 Registers can only be arrays in multiples of 2,
-furthermore a value and/or a action can be defined,
+furthermore a value and/or an action can be defined,
 the value and/or action is converted (high/low value) and inserted into each register set defined in "addr".
 
 
@@ -416,7 +416,7 @@ Example "float32" configuration:
 defines sets of registers (2) which contain a 32 bit float,
 
 Registers can only be arrays in multiples of 2,
-furthermore a value and/or a action can be defined,
+furthermore a value and/or an action can be defined,
 the value and/or action is converted (high/low value) and inserted into each register set defined in "addr".
 
 Remark remember to set ``"value": <float value>`` like 512.0 (float) not 512 (integer).
