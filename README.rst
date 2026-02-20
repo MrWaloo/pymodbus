@@ -233,11 +233,10 @@ Install git hooks, that helps control the commit and avoid errors when submittin
 
 
 The repository contains a number of important branches and tags:
-
-  * **dev** is where all development happens, this branch is not always stable.
-  * **master** is where the releases are kept.
-  * **vX.Y.Z** (e.g. v2.5.3) is a specific release
-  * any other branch is a feature branch, that should be merged into **dev** when ready.
+* **dev** is where all development happens, this branch is not always stable.
+* **master** is where the releases are kept.
+* **vX.Y.Z** (e.g. v2.5.3) is a specific release
+* any other branch is a feature branch, that should be merged into **dev** when ready.
 
 
 Example Code
