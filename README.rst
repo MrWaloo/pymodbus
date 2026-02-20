@@ -321,8 +321,8 @@ solving issues:
 
 There are 2 bigger projects ongoing:
 
-   * rewriting the internal part of all clients (both sync and async)
-   * Add features to the simulator, and enhance the web design
+* rewriting the internal part of all clients (both sync and async)
+* Add features to the simulator, and enhance the web design
 
 
 Development instructions
@@ -351,7 +351,8 @@ Test your changes::
    cd test
    pytest
 
-or
+or::
+
    ./check_ci.sh
 
 This command also generates the coverage files, which are stored in :code:`build/cov``
