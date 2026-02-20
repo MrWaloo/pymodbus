@@ -28,7 +28,7 @@ Upgrade examples:
 - 3.10.0 -> 3.12.0: Smaller changes to the pymodbus calls might be needed (Check `API_changes <https://github.com/pymodbus-dev/pymodbus/blob/dev/API_changes.rst>`_)
 - 2.5.4 -> 3.0.0: Major changes in the application might be needed
 
-**REMARK**: As can be seen from the above Pymodbus do NOT follow the semver.org standard.
+**REMARK**: As can be seen from the above Pymodbus does NOT follow the semver.org standard.
 
 It is always recommended to read the
 `CHANGELOG <https://github.com/pymodbus-dev/pymodbus/blob/dev/CHANGELOG.rst>`_
@@ -43,7 +43,7 @@ Bleeding edge (not released) is `dev <https://github.com/pymodbus-dev/pymodbus/t
 All changes are described in `release notes <https://pymodbus.readthedocs.io/en/latest/source/changelog.html>`_
 and all API changes are `documented <https://pymodbus.readthedocs.io/en/latest/source/api_changes.html>`_
 
-A big thanks to all the `volunteers <https://pymodbus.readthedocs.io/en/latest/source/authors.html>`_ that helps make pymodbus a great project.
+A big thanks to all the `volunteers <https://pymodbus.readthedocs.io/en/latest/source/authors.html>`_ that help make pymodbus a great project.
 
 Source code is available on `github <https://github.com/pymodbus-dev/pymodbus>`_
 
@@ -51,12 +51,12 @@ Full documentation for newest releases as well as the bleeding edge (dev) `readt
 
 Pymodbus in a nutshell
 ----------------------
-Pymodbus consist of 5 parts:
+Pymodbus consist of 4 parts:
 
-- **client**, connect to your favorite device(s)
-- **server**, create your own device(s)
-- **simulator**, an html based server simulator
-- **examples**, showing both simple and advanced usage
+- **client**: connect to your favorite device(s)
+- **server**: create your own device(s)
+- **simulator**: an html based server simulator
+- **examples**: showing both simple and advanced usage
 
 Common features
 ^^^^^^^^^^^^^^^
@@ -111,7 +111,7 @@ Simulator Features
 Use Cases
 ---------
 The client is the most typically used. It is embedded into applications,
-where it abstract the modbus protocol from the application by providing an
+where it abstracts the modbus protocol from the application by providing an
 easy to use API. The client is integrated into some well known projects like
 `home-assistant <https://www.home-assistant.io>`_.
 
@@ -139,7 +139,7 @@ The library is available on pypi.org and github.com to install with
 - :code:`pip` for those who just want to use the library
 - :code:`git clone` for those who wants to help or just are curious
 
-Be aware that there are a number of project, who have forked pymodbus and
+Be aware that there are a number of projects, who have forked pymodbus and
 
 - Seems just to provide a version frozen in time
 - Extended pymodbus with extra functionality
@@ -172,11 +172,11 @@ This will install pymodbus with the pyserial dependency.
 
 Pymodbus offers a number of extra options:
 
-- **serial**, needed for serial communication
-- **simulator**, needed by pymodbus.simulator
-- **documentation**, needed to generate documentation
-- **development**, needed for development
-- **all**, installs all of the above
+- **serial**: needed for serial communication
+- **simulator**: needed by pymodbus.simulator
+- **documentation**: needed to generate documentation
+- **development**: needed for development
+- **all**: installs all of the above
 
 which can be installed as::
 
@@ -192,7 +192,6 @@ Install with github
 On github, fork https://github.com/pymodbus-dev/pymodbus.git
 
 Clone the source, and make a virtual environment::
-
 
    git clone git://github.com/<your account>/pymodbus.git
    cd pymodbus
@@ -229,13 +228,15 @@ Install all (allows creation of documentation etc) in editable mode::
    immediately reflected when running examples or tests.
 
 Install git hooks, that helps control the commit and avoid errors when submitting a Pull Request::
+
    cp githooks/* .git/hooks
 
 
-The repository contains a number of important branches and tags.
+The repository contains a number of important branches and tags:
   * **dev** is where all development happens, this branch is not always stable.
-  * **master** is where are releases are kept.
+  * **master** is where the releases are kept.
   * **vX.Y.Z** (e.g. v2.5.3) is a specific release
+  * any other branch is a feature branch, that should be merged into **dev** when ready.
 
 
 Example Code
@@ -256,7 +257,7 @@ We provide a couple of simple ready to go clients:
 - `async client <https://github.com/pymodbus-dev/pymodbus/blob/dev/examples/simple_async_client.py>`_
 - `sync client <https://github.com/pymodbus-dev/pymodbus/blob/dev/examples/simple_sync_client.py>`_
 
-For more advanced examples, check out `Examples <https://pymodbus.readthedocs.io/en/dev/source/examples.html>`_ included in the
+For more advanced examples, check out `examples <https://pymodbus.readthedocs.io/en/dev/source/examples.html>`_ included in the
 repository. If you have created any utilities that meet a specific
 need, feel free to submit them so others can benefit.
 
@@ -278,11 +279,11 @@ The simulator can be started directly using the installed entry point::
 
 To ensure the simulator starts with the correct data context, use the following flags:
 
-* ``--json_file``: Path to the configuration JSON (defaults to the internal ``setup.json``).
-* ``--modbus_server``: Selects the server type from the JSON ``server_list``.
-* ``--modbus_device``: Selects the device registers from the JSON ``device_list``.
-* ``--http_port``: Port for the Web UI (default: 8081).
-* ``--log``: Sets the log level (default: info).
+* ``--json_file``: path to the configuration JSON (defaults to the internal ``setup.json``).
+* ``--modbus_server``: selects the server type from the JSON ``server_list``.
+* ``--modbus_device``: selects the device registers from the JSON ``device_list``.
+* ``--http_port``: port for the Web UI (default: 8081).
+* ``--log``: sets the log level (default: info).
 
 .. note:: Starting the simulator without explicit parameters may load an internal default configuration.
 
@@ -302,7 +303,7 @@ If you encounter errors while running examples, please check:
 Contributing
 ------------
 Just fork the repo and raise your Pull Request against :code:`dev` branch, but please never
-make your changes on the :code:`dev` branch
+make your changes on the :code:`dev` branch.
 
 We always have more work than time, so feel free to open a discussion / issue on a theme you want to solve.
 
@@ -339,10 +340,10 @@ Make a pull request::
    git pull                  <-- update branch with newest changes
    git checkout -b feature   <-- make new branch for pull request
    ... make source changes
-   git commit                <-- commit change to git
+   git commit                <-- commit changes to git
    git push                  <-- push to your account on github
 
-   on github open a pull request, check that CI turns green and then wait for review comments.
+On github open a pull request, check that CI turns green and then wait for review comments.
 
 Test your changes::
 
@@ -354,7 +355,7 @@ or
 
 This command also generates the coverage files, which are stored in :code:`build/cov``
 
-you can also do extended testing::
+You can also do extended testing::
 
    pytest --cov         <-- Coverage html report in build/html
    pytest --profile     <-- Call profile report in prof
@@ -371,7 +372,7 @@ methods are documented:
 Generate documentation
 ^^^^^^^^^^^^^^^^^^^^^^
 
-**Remark** Assumes that you have installed documentation tools:;
+**Remark** Assumes that you have installed documentation tools::
 
    pip install ".[documentation]"
 
@@ -382,7 +383,7 @@ to build do::
 
 The documentation is available in <root>/build/html
 
-Remark: this generates a new zip/tgz file of examples which are uploaded.
+**Remark** this generates a new zip/tgz file of examples which are uploaded.
 
 
 License Information
