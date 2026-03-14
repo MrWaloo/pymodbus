@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any
 
 from ..constants import ExcCodes
-from .context import ModbusBaseDeviceContext
+from ..logging import Log
 
 
 WORD_SIZE = 16
@@ -378,7 +378,7 @@ class Setup:
             raise RuntimeError(f"INVALID key in setup: {self.config}")
 
 
-class ModbusSimulatorContext(ModbusBaseDeviceContext):
+class ModbusSimulatorContext:
     """Modbus simulator.
 
     :param config: A dict with structure as shown below.
@@ -488,6 +488,10 @@ class ModbusSimulatorContext(ModbusBaseDeviceContext):
         self.registerType_id_to_name: list[str] = []
         if config:
             Setup(self).setup(config, custom_actions)
+        Log.warning("ModbusSimulatorContext is deprecated "
+                    "and will be removed in v4.\n"
+                    "Please convert to SimData/SimDevice.\n"
+                    "Please read https://pymodbus.readthedocs.io/en/dev/source/upgrade_40.html#convert-to-simdata-simdevice")
 
     # --------------------------------------------
     # Simulator server interface
@@ -587,7 +591,7 @@ class ModbusSimulatorContext(ModbusBaseDeviceContext):
         fx_write = func_code in self._write_func_code
         return self.loop_validate(real_address, real_address + count, fx_write)
 
-    def getValues(self, func_code, address, count=1) -> list[int] | list[bool] | ExcCodes:
+    async def async_OLD_getValues(self, func_code, address, count=1) -> list[int] | list[bool] | ExcCodes:
         """Return the requested values of the datastore.
 
         :meta private:
@@ -624,7 +628,7 @@ class ModbusSimulatorContext(ModbusBaseDeviceContext):
                 bit_index = 0
         return result
 
-    def setValues(self, func_code, address, values) -> None | ExcCodes:
+    async def async_OLD_setValues(self, func_code, address, values) -> None | ExcCodes:
         """Set the requested values of the datastore.
 
         :meta private:

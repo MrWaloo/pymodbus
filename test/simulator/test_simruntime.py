@@ -3,7 +3,7 @@ from typing import cast
 
 import pytest
 
-from pymodbus.pdu import ExceptionResponse
+from pymodbus.constants import ExcCodes
 from pymodbus.simulator import DataType, SimData, SimDevice
 from pymodbus.simulator.simruntime import SimRuntime
 
@@ -22,9 +22,21 @@ class TestSimRuntime:
         if function_code == 3:
             return current_registers
         if function_code == 4:
-            return ExceptionResponse(function_code, 1)
+            return ExcCodes.ILLEGAL_ADDRESS
         # function_code == 5:
         return None
+
+    @pytest.mark.parametrize("kwargs", [
+        {"id": 0, "simdata": ([SimData(0, datatype=DataType.BITS, values=15)],
+                              [SimData(0, datatype=DataType.BITS, values=15)],
+                              [SimData(0, datatype=DataType.INT16, values=15)],
+                              [SimData(0, datatype=DataType.INT16, values=15)])},
+        {"id": 0, "simdata": SimData(0, datatype=DataType.INT16, values=15)},
+    ])
+    def test_simruntime_instanciate(self, kwargs):
+        """Test that simdata can be objects."""
+        sd = SimDevice(**kwargs)
+        SimRuntime(sd)
 
     @pytest.mark.parametrize(("block", "expect"), [
         ((3, [1], [0xffff]), (3, 16, [1]*16, [1]*16)),
@@ -56,7 +68,7 @@ class TestSimRuntime:
         rt = SimRuntime(sd)
         ret = await rt.get_block(*args)
         if expect == -1:
-            assert isinstance(ret, ExceptionResponse)
+            assert isinstance(ret, ExcCodes)
         else:
             assert len(cast(list[int], ret)) == expect
 
@@ -92,6 +104,26 @@ class TestSimRuntime:
         rt = SimRuntime(sd)
         ret = await rt.get_block(*args)
         if expect == -1:
-            assert isinstance(ret, ExceptionResponse)
+            assert isinstance(ret, ExcCodes)
         else:
             assert len(cast(list[int], ret)) == expect
+
+    async def test_simruntime_getValues(self):
+        """Test that simdata can be objects."""
+        sd = SimDevice(0, simdata=SimData(10, values=15, datatype=DataType.REGISTERS))
+        rt = SimRuntime(sd)
+        result = await rt.async_getValues(0x03, 10, 1)
+        assert result == [15]
+        result = await rt.async_getValues(0x03, 15, 1)
+        assert isinstance(result, ExcCodes)
+
+    async def test_simruntime_setValues(self):
+        """Test that simdata can be objects."""
+        sd = SimDevice(0, simdata=SimData(10, values=15, datatype=DataType.REGISTERS))
+        rt = SimRuntime(sd)
+        result = await rt.async_setValues(0x03, 10, [1])
+        assert not result
+        result2 = await rt.async_getValues(0x03, 10, 1)
+        assert result2 == [1]
+        result3 = await rt.async_setValues(0x03, 15, [1])
+        assert isinstance(result3, ExcCodes)

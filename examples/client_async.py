@@ -36,7 +36,7 @@ import sys
 try:
     import helper  # type: ignore[import-not-found]
 except ImportError:
-    print("*** ERROR --> THIS EXAMPLE needs the example directory, please see \n\
+    print("*** ERROR --> THIS EXAMPLE needs to be run in the example directory, please see \n\
           https://pymodbus.readthedocs.io/en/latest/source/examples.html\n\
           for more information.")
     sys.exit(-1)
@@ -44,8 +44,7 @@ except ImportError:
 import pymodbus.client as modbusClient
 
 
-_logger = logging.getLogger(__file__)
-_logger.setLevel("DEBUG")
+_logger = logging.getLogger(__name__)
 
 
 def setup_async_client(description: str | None =None, cmdline: list[str] | None = None) -> modbusClient.ModbusBaseClient:

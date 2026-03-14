@@ -39,7 +39,7 @@ import sys
 try:
     import helper  # type: ignore[import-not-found]
 except ImportError:
-    print("*** ERROR --> THIS EXAMPLE needs the example directory, please see \n\
+    print("*** ERROR --> THIS EXAMPLE needs to be run in the example directory, please see \n\
           https://pymodbus.readthedocs.io/en/latest/source/examples.html\n\
           for more information.")
     sys.exit(-1)
@@ -49,7 +49,6 @@ from pymodbus import ModbusException
 
 
 _logger = logging.getLogger(__file__)
-_logger.setLevel("DEBUG")
 
 
 def setup_sync_client(description=None, cmdline=None):

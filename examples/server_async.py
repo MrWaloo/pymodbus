@@ -8,7 +8,8 @@ usage::
     server_async.py [-h] [--comm {tcp,udp,serial,tls}]
                     [--framer {ascii,rtu,socket,tls}]
                     [--log {critical,error,warning,info,debug}]
-                    [--port PORT] [--store {sequential,sparse,factory,none}]
+                    [--port PORT]
+                    [--baudrate BAUDRATE]
                     [--device_ids DEVICE_IDS]
 
     -h, --help
@@ -21,9 +22,8 @@ usage::
         set log level, default is info
     -p, --port PORT
         set port
+    --baudrate BAUDRATE
         set serial device baud rate
-    --store {sequential,sparse,factory,none}
-        set datastore type
     --device_ids DEVICE IDs
         set list of devices to respond to
 
@@ -35,88 +35,44 @@ The corresponding client can be started as:
 import asyncio
 import logging
 import sys
-from collections.abc import Callable
-from typing import Any
 
 
 try:
     import helper  # type: ignore[import-not-found]
 except ImportError:
-    print("*** ERROR --> THIS EXAMPLE needs the example directory, please see \n\
+    print("*** ERROR --> THIS EXAMPLE needs to be run in the example directory, please see \n\
           https://pymodbus.readthedocs.io/en/latest/source/examples.html\n\
           for more information.")
     sys.exit(-1)
 
 from pymodbus import ModbusDeviceIdentification
 from pymodbus import __version__ as pymodbus_version
-from pymodbus.datastore import (
-    ModbusDeviceContext,
-    ModbusSequentialDataBlock,
-    ModbusServerContext,
-    ModbusSparseDataBlock,
-)
 from pymodbus.server import (
     StartAsyncSerialServer,
     StartAsyncTcpServer,
     StartAsyncTlsServer,
     StartAsyncUdpServer,
 )
+from pymodbus.simulator import DataType, SimData, SimDevice
 
 
 _logger = logging.getLogger(__file__)
-_logger.setLevel(logging.INFO)
 
 
 def setup_server(description=None, context=None, cmdline=None):
     """Run server setup."""
     args = helper.get_commandline(server=True, description=description, cmdline=cmdline)
-    if context:
+    if context:  # pragma: no cover
         args.context = context
-    datablock: Callable[[], Any]
-    if not args.context:
+    if not args.context:  # pragma: no cover
         _logger.info("### Create datastore")
-        # The datastores only respond to the addresses that are initialized
-        # If you initialize a DataBlock to addresses of 0x00 to 0xFF, a request to
-        # 0x100 will respond with an invalid address exception.
-        # This is because many devices exhibit this kind of behavior (but not all)
-        if args.store == "sequential":  # pragma: no cover
-            # Continuing, use a sequential block without gaps.
-            datablock = lambda : ModbusSequentialDataBlock(0x00, [17] * 100)  # pylint: disable=unnecessary-lambda-assignment
-        elif args.store == "sparse":  # pragma: no cover
-            # Continuing, or use a sparse DataBlock which can have gaps
-            datablock = lambda : ModbusSparseDataBlock({0x00: 0, 0x05: 1})  # pylint: disable=unnecessary-lambda-assignment
-        elif args.store == "factory" or True:  # pragma: no cover  # pylint: disable=condition-evals-to-constant
-            # Alternately, use the factory methods to initialize the DataBlocks
-            # or simply do not pass them to have them initialized to 0x00 on the
-            # full address range::
-            datablock = lambda : ModbusSequentialDataBlock.create()  # pylint: disable=unnecessary-lambda-assignment,unnecessary-lambda
-
-        if args.device_ids > 1:  # pragma: no cover
-            # The server then makes use of a server context that allows the server
-            # to respond with different device contexts for different device ids.
-            # By default it will return the same context for every device id supplied
-            # (broadcast mode).
-            # However, this can be overloaded by setting the single flag to False and
-            # then supplying a dictionary of device id to context mapping::
-            context = {
-                device_id : ModbusDeviceContext(
-                    di=datablock(),
-                    co=datablock(),
-                    hr=datablock(),
-                    ir=datablock(),
-                )
-                for device_id in range(args.device_ids)
-            }
-
-            single = False
-        else:
-            context = ModbusDeviceContext(
-                di=datablock(), co=datablock(), hr=datablock(), ir=datablock()
-            )
-            single = True
 
         # Build data storage
-        args.context = ModbusServerContext(devices=context, single=single)
+        if args.device_ids > 1:  # pragma: no cover
+            args.context = [SimDevice(device_id, SimData(0, datatype=DataType.REGISTERS, values=[17]*100))
+                            for device_id in range(args.device_ids)]
+        else:
+            args.context = SimDevice(0, SimData(0, datatype=DataType.REGISTERS, values=[17]*100))
 
     # ----------------------------------------------------------------------- #
     # initialize the server information
@@ -197,7 +153,7 @@ async def run_async_server(args) -> None:
             certfile=helper.get_certificate(
                 "crt"
             ),  # The cert file path for TLS (used if sslctx is None)
-            # sslctx=sslctx,  # The SSLContext to use for TLS (default None and auto create)
+            # sslctx=sslctx,  # The SSLContext to use for TLS (default None and auto)
             keyfile=helper.get_certificate(
                 "key"
             ),  # The key file path for TLS (used if sslctx is None)
