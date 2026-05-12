@@ -77,11 +77,6 @@ class TestFramer:
         assert used_len == len(msg)
         assert pdu
 
-    async def test_multidrop_timing(self):
-        """Test bz_bps=."""
-        # assert FramerRTU(DecodePDU(True), multidrop = (8, 2, 9600, []))
-        # assert FramerRTU(DecodePDU(True), multidrop = (8, 2, 38400, []))
-
 class TestFramerType:
     """Test classes."""
 
@@ -493,3 +488,29 @@ class TestFramerType:
         assert dev_id == 0
         assert tid == 0
         assert pdu == framer.EMPTY
+
+    def test_short_packet_for_framer_tls(self):
+        """Test that FramerTLS handles short packets without raising."""
+        framer = FramerTLS(DecodePDU(False))
+        data = b"\x00\x01\x00\x00\x00"
+        data_len, dev_id, tid, pdu = framer.decode(data)
+        assert data_len == len(data)
+        assert dev_id == 0
+        assert tid == 0
+        assert pdu == framer.EMPTY
+
+    @pytest.mark.parametrize(("entry"), [FramerType.ASCII])
+    @pytest.mark.parametrize(("is_server"), [False, True])
+    @pytest.mark.parametrize(("msg"), [
+        (b':0107F\r\n'),
+        (b':0107FG\r\n'),
+    ])
+    def test_framer_ascii_decode(self, test_framer, msg):
+        """Test a tcp frame transaction."""
+        used_len, pdu = test_framer.handleFrame(msg, 1, 0)
+        assert used_len == len(msg)
+        assert not pdu
+        msg2 = msg + b':0003007C00027F\r\n'
+        used_len, pdu = test_framer.handleFrame(msg2, 1, 0)
+        assert used_len == len(msg2)
+        assert not pdu
